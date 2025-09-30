@@ -116,7 +116,15 @@ class BaseEnv(gym.Env):
         self.np_random, seed = seeding.np_random(seed)  # noqa
         return [seed]
 
-    def reset(self) -> list:
+    def reset(self, **kwargs):
+        # 支持新的gymnasium接口参数
+        seed = kwargs.get('seed', None)
+        options = kwargs.get('options', None)
+        return_info = kwargs.get('return_info', False)
+        
+        if seed is not None:
+            self.seed(seed)
+            
         self.current_step = 0
 
         limit = self.field_size - self.target_radius
@@ -128,9 +136,20 @@ class BaseEnv(gym.Env):
         high = [self.field_size, self.field_size, 2 * np.pi]
         self.agent.reset(*self.np_random.uniform(low, high))
 
-        return self.get_state()
+        observation = self.get_state()
+        info = {
+            'target_position': (self.target.x, self.target.y),
+            'agent_position': (self.agent.x, self.agent.y),
+            'distance_to_target': self.distance
+        }
+        
+        # 向后兼容：根据参数决定返回格式
+        if return_info or seed is not None or options is not None:
+            return observation, info
+        else:
+            return observation
 
-    def step(self, raw_action: Tuple[int, list]) -> Tuple[list, float, bool, dict]:
+    def step(self, raw_action: Tuple[int, list]) -> Tuple[list, float, bool, bool, dict]:
         action = Action(*raw_action)
         last_distance = self.distance
         self.current_step += 1
@@ -144,18 +163,33 @@ class BaseEnv(gym.Env):
         elif action.id == BREAK:
             self.agent.break_()
 
-        if self.distance < self.target_radius and self.agent.speed == 0:
+        goal_reached = self.distance < self.target_radius and self.agent.speed == 0
+        out_of_bounds = abs(self.agent.x) > self.field_size or abs(self.agent.y) > self.field_size
+        max_steps_reached = self.current_step > self.max_step
+        
+        if goal_reached:
             reward = self.get_reward(last_distance, True)
-            done = True
-        elif abs(self.agent.x) > self.field_size or abs(self.agent.y
-                                                        ) > self.field_size or self.current_step > self.max_step:
+            terminated = True
+            truncated = False
+        elif out_of_bounds or max_steps_reached:
             reward = -1
-            done = True
+            terminated = False
+            truncated = True
         else:
             reward = self.get_reward(last_distance)
-            done = False
+            terminated = False
+            truncated = False
 
-        return self.get_state(), reward, done, {}
+        observation = self.get_state()
+        info = {
+            'goal_reached': goal_reached,
+            'out_of_bounds': out_of_bounds,
+            'max_steps_reached': max_steps_reached,
+            'distance_to_target': self.distance,
+            'agent_speed': self.agent.speed
+        }
+        
+        return observation, reward, terminated, truncated, info
 
     def get_state(self) -> list:
         state = [
@@ -323,7 +357,6 @@ class HardMoveEnv(gym.Env):
         # Initialization
         self.seed(seed)
         self.target = None
-        self.viewer = None
         self.current_step = None
         self.agent = HardMoveAgent(break_value=break_value, delta_t=delta_t, num_actuators=self.num_actuators)
 
@@ -339,7 +372,15 @@ class HardMoveEnv(gym.Env):
         self.np_random, seed = seeding.np_random(seed)  # noqa
         return [seed]
 
-    def reset(self) -> list:
+    def reset(self, **kwargs):
+        # 支持新的gymnasium接口参数
+        seed = kwargs.get('seed', None)
+        options = kwargs.get('options', None)
+        return_info = kwargs.get('return_info', False)
+        
+        if seed is not None:
+            self.seed(seed)
+            
         self.current_step = 0
 
         limit = self.field_size - self.target_radius
@@ -351,27 +392,55 @@ class HardMoveEnv(gym.Env):
         high = [self.field_size, self.field_size, 2 * np.pi]
         self.agent.reset(*self.np_random.uniform(low, high))
 
-        return self.get_state()
+        observation = self.get_state()
+        info = {
+            'target_position': (self.target.x, self.target.y),
+            'agent_position': (self.agent.x, self.agent.y),
+            'distance_to_target': self.distance,
+            'num_actuators': self.num_actuators
+        }
+        
+        # 向后兼容：根据参数决定返回格式
+        if return_info or seed is not None or options is not None:
+            return observation, info
+        else:
+            return observation
 
-    def step(self, raw_action: Tuple[int, list]) -> Tuple[list, float, bool, dict]:
+    def step(self, raw_action: Tuple[int, list]) -> Tuple[list, float, bool, bool, dict]:
         move_direction_meta = raw_action[0]  # shape (1,) in {2**n}
         move_distances = raw_action[1]  # shape (2**n,)
         last_distance = self.distance
         self.current_step += 1
 
         self.agent.move(move_direction_meta, move_distances)
-        if self.distance < self.target_radius:
+        
+        goal_reached = self.distance < self.target_radius
+        out_of_bounds = abs(self.agent.x) > self.field_size or abs(self.agent.y) > self.field_size
+        max_steps_reached = self.current_step > self.max_step
+        
+        if goal_reached:
             reward = self.get_reward(last_distance, True)
-            done = True
-        elif abs(self.agent.x) > self.field_size or abs(self.agent.y
-                                                        ) > self.field_size or self.current_step > self.max_step:
+            terminated = True
+            truncated = False
+        elif out_of_bounds or max_steps_reached:
             reward = -1
-            done = True
+            terminated = False
+            truncated = True
         else:
             reward = self.get_reward(last_distance)
-            done = False
+            terminated = False
+            truncated = False
 
-        return self.get_state(), reward, done, {}
+        observation = self.get_state()
+        info = {
+            'goal_reached': goal_reached,
+            'out_of_bounds': out_of_bounds,
+            'max_steps_reached': max_steps_reached,
+            'distance_to_target': self.distance,
+            'move_direction_meta': move_direction_meta
+        }
+        
+        return observation, reward, terminated, truncated, info
 
     def get_state(self) -> list:
         state = [
@@ -394,6 +463,5 @@ class HardMoveEnv(gym.Env):
         return np.sqrt(((x1 - x2) ** 2) + ((y1 - y2) ** 2)).item()
 
     def close(self):
-        if self.viewer:
-            self.viewer.close()
-            self.viewer = None
+        # HardMoveEnv没有渲染功能，无需清理资源
+        pass
