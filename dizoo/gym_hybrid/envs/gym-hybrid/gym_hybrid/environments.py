@@ -92,9 +92,9 @@ class BaseEnv(gym.Env):
         # Initialization
         self.seed(seed)
         self.target = None
-        self.viewer = None
         self.current_step = None
         self.agent = BaseAgent(break_value=break_value, delta_t=delta_t)
+        self._window_name = None
 
         parameters_min = np.array([0, -1])
         parameters_max = np.array([1, +1])
@@ -103,10 +103,14 @@ class BaseEnv(gym.Env):
         self.observation_space = spaces.Box(np.ones(10), -np.ones(10))
         dirname = os.path.dirname(__file__)
         self.bg = cv2.imread(os.path.join(dirname, 'bg.jpg'))
-        self.bg = cv2.cvtColor(self.bg, cv2.COLOR_BGR2RGB)
-        self.bg = cv2.resize(self.bg, (800, 800))
+        if self.bg is not None:
+            self.bg = cv2.cvtColor(self.bg, cv2.COLOR_BGR2RGB)
+            self.bg = cv2.resize(self.bg, (800, 800))
+        else:
+            self.bg = np.ones((800, 800, 3), dtype=np.uint8) * 255
         self.target_img = cv2.imread(os.path.join(dirname, 'target.png'), cv2.IMREAD_UNCHANGED)
-        self.target_img = cv2.resize(self.target_img, (60, 60))
+        if self.target_img is not None:
+            self.target_img = cv2.resize(self.target_img, (60, 60))
 
     def seed(self, seed: Optional[int] = None) -> list:
         self.np_random, seed = seeding.np_random(seed)  # noqa
@@ -173,64 +177,54 @@ class BaseEnv(gym.Env):
     def get_distance(x1: float, y1: float, x2: float, y2: float) -> float:
         return np.sqrt(((x1 - x2) ** 2) + ((y1 - y2) ** 2)).item()
 
-    def render(self, mode='human'):
-        screen_width = 400
-        screen_height = 400
-        unit_x = screen_width / 2
-        unit_y = screen_height / 2
-        agent_radius = 0.05
+    def render(self, mode: str = 'human'):
+        frame = self.bg.copy() if self.bg is not None else np.ones((800, 800, 3), dtype=np.uint8) * 255
+        height, width = frame.shape[:2]
+        unit_x = width / 2
+        unit_y = height / 2
+        agent_radius_ratio = 0.05
 
-        if self.viewer is None:
-            from gym.envs.classic_control import rendering
-            self.viewer = rendering.Viewer(screen_width, screen_height)
+        # 计算目标区域并绘制
+        target_px = int(unit_x * (1 + self.target.x / self.field_size))
+        target_py = int(unit_y * (1 - self.target.y / self.field_size))
+        target_radius_px = max(1, int(self.target_radius / self.field_size * min(unit_x, unit_y)))
+        cv2.circle(frame, (target_px, target_py), target_radius_px, (0, 153, 0), 2)
 
-            agent = rendering.make_circle(unit_x * agent_radius)
-            self.agent_trans = rendering.Transform(
-                translation=(unit_x * (1 + self.agent.x), unit_y * (1 + self.agent.y))
-            )  # noqa
-            agent.add_attr(self.agent_trans)
-            agent.set_color(0.1, 0.3, 0.9)
-            self.viewer.add_geom(agent)
+        # 绘制智能体
+        agent_px = int(unit_x * (1 + self.agent.x / self.field_size))
+        agent_py = int(unit_y * (1 - self.agent.y / self.field_size))
+        agent_radius_px = max(1, int(agent_radius_ratio * min(unit_x, unit_y)))
+        cv2.circle(frame, (agent_px, agent_py), agent_radius_px, (26, 77, 230), -1)
 
-            t, r, m = 0.1 * unit_x, 0.04 * unit_y, 0.06 * unit_x
-            arrow = rendering.FilledPolygon([(t, 0), (m, r), (m, -r)])
-            self.arrow_trans = rendering.Transform(rotation=self.agent.theta)  # noqa
-            arrow.add_attr(self.arrow_trans)
-            arrow.add_attr(self.agent_trans)
-            arrow.set_color(0, 0, 0)
-            self.viewer.add_geom(arrow)
+        # 绘制朝向箭头
+        arrow_length = int(0.12 * min(unit_x, unit_y))
+        arrow_end_x = int(agent_px + arrow_length * np.cos(self.agent.theta))
+        arrow_end_y = int(agent_py - arrow_length * np.sin(self.agent.theta))
+        cv2.arrowedLine(frame, (agent_px, agent_py), (arrow_end_x, arrow_end_y), (0, 0, 0), 2, tipLength=0.2)
 
-            target = rendering.make_circle(unit_x * self.target_radius, filled=False)
-            target_trans = rendering.Transform(translation=(unit_x * (1 + self.target.x), unit_y * (1 + self.target.y)))
-            target.add_attr(target_trans)
-            target.set_color(0, 0.6, 0)
-            self.viewer.add_geom(target)
+        # 添加边框
+        frame[:6, :] = (60, 60, 30)
+        frame[-6:, :] = (60, 60, 30)
+        frame[:, :6] = (60, 60, 30)
+        frame[:, -6:] = (60, 60, 30)
 
-        self.arrow_trans.set_rotation(self.agent.theta)
-        self.agent_trans.set_translation(unit_x * (1 + self.agent.x), unit_y * (1 + self.agent.y))
+        if mode == 'rgb_array':
+            return frame
 
-        ret = self.viewer.render(return_rgb_array=mode == 'rgb_array')
-        # add background
-        ret = np.where(ret == 255, self.bg, ret)
-        # add target logo
-        # # x, y = int(unit_x * (1 + self.target.x)), int(unit_y * (1 - self.target.y))
-        # # x, y = x - 20, y + 25  # seed0
-        # target_area = ret[x:x+60, y:y+60]
-        # rgb_img = cv2.cvtColor(self.target_img[..., :3], cv2.COLOR_BGR2RGB)
-        # target_area = np.where(self.target_img[..., -1:] == 0, target_area, rgb_img)
-        # ret[x:x+60, y:y+60] = target_area
-        # add frame
-        frames = np.array([60, 60, 30]).reshape(1, 1, -1)
-        ret[:6] = frames
-        ret[:, :6] = frames
-        ret[-6:] = frames
-        ret[:, -6:] = frames
-        return ret
+        if mode == 'human':
+            if self._window_name is None:
+                self._window_name = f'{self.__class__.__name__}'
+                cv2.namedWindow(self._window_name, cv2.WINDOW_AUTOSIZE)
+            cv2.imshow(self._window_name, cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+            cv2.waitKey(1)
+            return frame
+
+        raise NotImplementedError(f'不支持的render模式: {mode}')
 
     def close(self):
-        if self.viewer:
-            self.viewer.close()
-            self.viewer = None
+        if self._window_name is not None:
+            cv2.destroyWindow(self._window_name)
+            self._window_name = None
 
 
 class MovingEnv(BaseEnv):
