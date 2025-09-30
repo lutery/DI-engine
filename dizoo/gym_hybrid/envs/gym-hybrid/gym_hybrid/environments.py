@@ -100,7 +100,11 @@ class BaseEnv(gym.Env):
         parameters_max = np.array([1, +1])
 
         self.action_space = spaces.Tuple((spaces.Discrete(3), spaces.Box(parameters_min, parameters_max)))
-        self.observation_space = spaces.Box(np.ones(10), -np.ones(10))
+        # 观察空间: [agent_x, agent_y, speed, cos(theta), sin(theta), target_x, target_y, distance, in_target, step_ratio]
+        # 位置和距离可能超出[-1,1]，角度函数在[-1,1]，速度>=0，step_ratio在[0,1]
+        obs_low = np.array([-np.inf, -np.inf, 0, -1, -1, -np.inf, -np.inf, 0, 0, 0], dtype=np.float32)
+        obs_high = np.array([np.inf, np.inf, np.inf, 1, 1, np.inf, np.inf, np.inf, 1, 1], dtype=np.float32)
+        self.observation_space = spaces.Box(obs_low, obs_high, dtype=np.float32)
         dirname = os.path.dirname(__file__)
         self.bg = cv2.imread(os.path.join(dirname, 'bg.jpg'))
         if self.bg is not None:
@@ -191,14 +195,14 @@ class BaseEnv(gym.Env):
         
         return observation, reward, terminated, truncated, info
 
-    def get_state(self) -> list:
+    def get_state(self) -> np.ndarray:
         state = [
             self.agent.x, self.agent.y, self.agent.speed,
             np.cos(self.agent.theta),
             np.sin(self.agent.theta), self.target.x, self.target.y, self.distance,
             0 if self.distance > self.target_radius else 1, self.current_step / self.max_step
         ]
-        return state
+        return np.array(state, dtype=np.float32)
 
     def get_reward(self, last_distance: float, goal: bool = False) -> float:
         return last_distance - self.distance - self.penalty + (1 if goal else 0)
@@ -366,7 +370,11 @@ class HardMoveEnv(gym.Env):
         self.action_space = spaces.Tuple(
             (spaces.Discrete(int(2 ** self.num_actuators)), spaces.Box(parameters_min, parameters_max))
         )
-        self.observation_space = spaces.Box(np.ones(10), -np.ones(10))
+        # 观察空间: [agent_x, agent_y, speed, cos(theta), sin(theta), target_x, target_y, distance, in_target, step_ratio]  
+        # 位置和距离可能超出[-1,1]，角度函数在[-1,1]，速度>=0，step_ratio在[0,1]
+        obs_low = np.array([-np.inf, -np.inf, 0, -1, -1, -np.inf, -np.inf, 0, 0, 0], dtype=np.float32)
+        obs_high = np.array([np.inf, np.inf, np.inf, 1, 1, np.inf, np.inf, np.inf, 1, 1], dtype=np.float32)
+        self.observation_space = spaces.Box(obs_low, obs_high, dtype=np.float32)
 
     def seed(self, seed: Optional[int] = None) -> list:
         self.np_random, seed = seeding.np_random(seed)  # noqa
@@ -442,14 +450,14 @@ class HardMoveEnv(gym.Env):
         
         return observation, reward, terminated, truncated, info
 
-    def get_state(self) -> list:
+    def get_state(self) -> np.ndarray:
         state = [
             self.agent.x, self.agent.y, self.agent.speed,
             np.cos(self.agent.theta),
             np.sin(self.agent.theta), self.target.x, self.target.y, self.distance,
             0 if self.distance > self.target_radius else 1, self.current_step / self.max_step
         ]
-        return state
+        return np.array(state, dtype=np.float32)
 
     def get_reward(self, last_distance: float, goal: bool = False) -> float:
         return last_distance - self.distance - self.penalty + (1 if goal else 0)
