@@ -8,7 +8,7 @@ if __name__ == '__main__':
 
     done = False
     while not done:
-        _, _, done, _ = env.step(env.action_space.sample())
+        _, _, done, _, _ = env.step(env.action_space.sample())
         env.render()
         time.sleep(0.1)
 
