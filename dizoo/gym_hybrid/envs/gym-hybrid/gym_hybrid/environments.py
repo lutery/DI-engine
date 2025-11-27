@@ -363,6 +363,7 @@ class HardMoveEnv(gym.Env):
         self.target = None
         self.current_step = None
         self.agent = HardMoveAgent(break_value=break_value, delta_t=delta_t, num_actuators=self.num_actuators)
+        self._window_name = None  # 初始化渲染窗口名称
 
         parameters_min = np.array([-1 for i in range(self.num_actuators)])
         parameters_max = np.array([+1 for i in range(self.num_actuators)])
@@ -375,6 +376,20 @@ class HardMoveEnv(gym.Env):
         obs_low = np.array([-np.inf, -np.inf, 0, -1, -1, -np.inf, -np.inf, 0, 0, 0], dtype=np.float32)
         obs_high = np.array([np.inf, np.inf, np.inf, 1, 1, np.inf, np.inf, np.inf, 1, 1], dtype=np.float32)
         self.observation_space = spaces.Box(obs_low, obs_high, dtype=np.float32)
+
+
+        # 加载渲染资源
+        dirname = os.path.dirname(__file__)
+        self.bg = cv2.imread(os.path.join(dirname, 'bg.jpg'))
+        if self.bg is not None:
+            self.bg = cv2.cvtColor(self.bg, cv2.COLOR_BGR2RGB)
+            self.bg = cv2.resize(self.bg, (800, 800))
+        else:
+            self.bg = np.ones((800, 800, 3), dtype=np.uint8) * 255
+        self.target_img = cv2.imread(os.path.join(dirname, 'target.png'), cv2.IMREAD_UNCHANGED)
+        if self.target_img is not None:
+            self.target_img = cv2.resize(self.target_img, (60, 60))
+
 
     def seed(self, seed: Optional[int] = None) -> list:
         self.np_random, seed = seeding.np_random(seed)  # noqa
@@ -413,6 +428,74 @@ class HardMoveEnv(gym.Env):
             return observation, info
         else:
             return observation
+        
+
+    def render(self, mode: str = 'human'):
+        """
+        渲染 HardMove 环境的当前状态。
+        
+        Args:
+            mode (str): 渲染模式，'human' 或 'rgb_array'
+            
+        Returns:
+            如果 mode='rgb_array'，返回图像数组；否则返回 None
+        """
+        frame = self.bg.copy() if self.bg is not None else np.ones((800, 800, 3), dtype=np.uint8) * 255
+        height, width = frame.shape[:2]
+        unit_x = width / 2
+        unit_y = height / 2
+        agent_radius_ratio = 0.05
+
+        # 计算目标区域并绘制
+        target_px = int(unit_x * (1 + self.target.x / self.field_size))
+        target_py = int(unit_y * (1 - self.target.y / self.field_size))
+        target_radius_px = max(1, int(self.target_radius / self.field_size * min(unit_x, unit_y)))
+        cv2.circle(frame, (target_px, target_py), target_radius_px, (0, 153, 0), 2)
+
+        # 绘制智能体
+        agent_px = int(unit_x * (1 + self.agent.x / self.field_size))
+        agent_py = int(unit_y * (1 - self.agent.y / self.field_size))
+        agent_radius_px = max(1, int(agent_radius_ratio * min(unit_x, unit_y)))
+        cv2.circle(frame, (agent_px, agent_py), agent_radius_px, (230, 77, 26), -1)  # 橙色表示 HardMove
+
+        # 绘制朝向箭头
+        arrow_length = int(0.12 * min(unit_x, unit_y))
+        arrow_end_x = int(agent_px + arrow_length * np.cos(self.agent.theta))
+        arrow_end_y = int(agent_py - arrow_length * np.sin(self.agent.theta))
+        cv2.arrowedLine(frame, (agent_px, agent_py), (arrow_end_x, arrow_end_y), (0, 0, 0), 2, tipLength=0.2)
+
+        # 绘制执行器方向指示（可选）
+        for i in range(self.num_actuators):
+            actuator_angle = i * 2 * np.pi / self.num_actuators
+            actuator_length = int(0.08 * min(unit_x, unit_y))
+            actuator_end_x = int(agent_px + actuator_length * np.cos(actuator_angle))
+            actuator_end_y = int(agent_py - actuator_length * np.sin(actuator_angle))
+            cv2.line(frame, (agent_px, agent_py), (actuator_end_x, actuator_end_y), (150, 150, 150), 1)
+
+        # 添加边框
+        frame[:6, :] = (60, 60, 30)
+        frame[-6:, :] = (60, 60, 30)
+        frame[:, :6] = (60, 60, 30)
+        frame[:, -6:] = (60, 60, 30)
+
+        # 添加信息文本
+        info_text = f"Step: {self.current_step}/{self.max_step} | Distance: {self.distance:.3f}"
+        cv2.putText(frame, info_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+        cv2.putText(frame, f"Actuators: {self.num_actuators}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+
+        if mode == 'rgb_array':
+            return frame
+
+        if mode == 'human':
+            if self._window_name is None:
+                self._window_name = f'{self.__class__.__name__}-{id(self)}'
+                cv2.namedWindow(self._window_name, cv2.WINDOW_AUTOSIZE)
+            cv2.imshow(self._window_name, cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+            cv2.waitKey(1)
+            return frame
+
+        raise NotImplementedError(f'不支持的render模式: {mode}')
+
 
     def step(self, raw_action: Tuple[int, list]) -> Tuple[list, float, bool, bool, dict]:
         move_direction_meta = raw_action[0]  # shape (1,) in {2**n}
@@ -471,5 +554,7 @@ class HardMoveEnv(gym.Env):
         return np.sqrt(((x1 - x2) ** 2) + ((y1 - y2) ** 2)).item()
 
     def close(self):
-        # HardMoveEnv没有渲染功能，无需清理资源
-        pass
+        """清理渲染资源"""
+        if self._window_name is not None:
+            cv2.destroyWindow(self._window_name)
+            self._window_name = None
