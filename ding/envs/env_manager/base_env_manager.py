@@ -108,8 +108,8 @@ class BaseEnvManager(object):
 
     def __init__(
             self,
-            env_fn: List[Callable],
-            cfg: EasyDict = EasyDict({}),
+            env_fn: List[Callable], # 看子类
+            cfg: EasyDict = EasyDict({}), # 看子类
     ) -> None:
         """
         Overview:
@@ -126,14 +126,15 @@ class BaseEnvManager(object):
             For more details about how to merge config, please refer to the system document of DI-engine \
             (`en link1 <../03_system/config.html>`_).
         """
-        self._cfg = cfg
-        self._env_fn = env_fn
-        self._env_num = len(self._env_fn)
-        self._closed = True
-        self._env_replay_path = None
+        self._cfg = cfg # 存储调用env_fn时传入的参数
+        self._env_fn = env_fn # 存储环境构造器（函数）
+        self._env_num = len(self._env_fn) # 子环境数量
+        self._closed = True # todo 是否关闭环境管理器
+        self._env_replay_path = None # todo 存储环境回放路径
         # env_ref is used to acquire some common attributes of env, like obs_shape and act_shape
-        self._env_ref = self._env_fn[0]()
+        self._env_ref = self._env_fn[0]() # 构造第一个子环境作为参考
         try:
+            # 获取环境的观察空间、动作空间和奖励空间
             self._observation_space = self._env_ref.observation_space
             self._action_space = self._env_ref.action_space
             self._reward_space = self._env_ref.reward_space

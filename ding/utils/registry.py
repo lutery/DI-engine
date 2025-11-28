@@ -136,8 +136,8 @@ class Registry(dict):
         """
 
         try:
-            build_fn = self[obj_type] # 这里可以这么使用因为继承了字典类型
-            return build_fn(*obj_args, **obj_kwargs)
+            build_fn = self[obj_type] # 这里可以这么使用因为继承了字典类型，根据提取的管理器启动的类型（比如子进程），获取对应的工厂
+            return build_fn(*obj_args, **obj_kwargs) # 调用对应的工厂，传入参数，构建对象
         except Exception as e:
             # get build_fn fail
             if isinstance(e, KeyError):

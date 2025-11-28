@@ -61,8 +61,8 @@ class AsyncSubprocessEnvManager(BaseEnvManager):
 
     def __init__(
             self,
-            env_fn: List[Callable],
-            cfg: EasyDict = EasyDict({}),
+            env_fn: List[Callable], # 接受一系列可以调用的对象，比如 环境构造器make
+            cfg: EasyDict = EasyDict({}), # 构造环境时的配置参数
     ) -> None:
         """
         Overview:
@@ -676,6 +676,8 @@ class AsyncSubprocessEnvManager(BaseEnvManager):
 
 @ENV_MANAGER_REGISTRY.register('subprocess')
 class SyncSubprocessEnvManager(AsyncSubprocessEnvManager):
+    # 子进程环境采样器
+    # todo 以下配置的每个配置项的含义
     config = dict(
         episode_num=float("inf"),
         max_retry=1,
