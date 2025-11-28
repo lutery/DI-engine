@@ -180,6 +180,8 @@ def read_config_directly(path: str) -> dict:
 def read_config(path: str) -> Tuple[dict, dict]:
     """
     Overview:
+        仅支持python格式的配置文件，其他的不支持
+        todo 后续给其增加注释
         Read configuration from a file path(now only support python file). And select some proper parts.
     Arguments:
         - path (:obj:`str`): Path of configuration file
@@ -326,7 +328,7 @@ def save_project_state(exp_name: str) -> None:
 
 
 def compile_config(
-        cfg: EasyDict,
+        cfg: EasyDict, # todo
         env_manager: type = None,
         policy: type = None,
         learner: type = BaseLearner,
@@ -338,13 +340,15 @@ def compile_config(
         world_model: type = None,
         seed: int = 0,
         auto: bool = False,
-        create_cfg: dict = None,
+        create_cfg: dict = None, # todo
         save_cfg: bool = True,
         save_path: str = 'total_config.py',
         renew_dir: bool = True,
 ) -> EasyDict:
     """
     Overview:
+        todo 主要作用
+        todo 后续注释
         Combine the input config information with other input information.
         Compile config to make it easy to be called by other programs
     Arguments:

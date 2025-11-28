@@ -140,6 +140,7 @@ class BaseEnv(gym.Env, ABC, metaclass=FinalMeta):
 
 def get_vec_env_setting(cfg: dict, collect: bool = True, eval_: bool = True) -> Tuple[type, List[dict], List[dict]]:
     """
+    todo 后续注释
     Overview:
         Get vectorized env setting (env_fn, collector_env_cfg, evaluator_env_cfg).
     Arguments:

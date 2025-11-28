@@ -663,7 +663,9 @@ def create_env_manager(manager_cfg: EasyDict, env_fn: List[Callable]) -> BaseEnv
     """
     manager_cfg = copy.deepcopy(manager_cfg)
     if 'import_names' in manager_cfg:
+        # 动态导入注册过的环境比如 lunarlander
         import_module(manager_cfg.pop('import_names'))
+    # 获取管理环境执行的方式，比如子进程里面去执行
     manager_type = manager_cfg.pop('type')
     return ENV_MANAGER_REGISTRY.build(manager_type, env_fn=env_fn, cfg=manager_cfg)
 

@@ -17,8 +17,8 @@ from .utils import random_collect, mark_not_expert
 
 
 def serial_pipeline_r2d3(
-        input_cfg: Union[str, Tuple[dict, dict]],
-        expert_cfg: Union[str, Tuple[dict, dict]],
+        input_cfg: Union[str, Tuple[dict, dict]], # todo
+        expert_cfg: Union[str, Tuple[dict, dict]], # todo
         seed: int = 0,
         env_setting: Optional[List[Any]] = None,
         model: Optional[torch.nn.Module] = None,
@@ -49,23 +49,30 @@ def serial_pipeline_r2d3(
         - policy (:obj:`Policy`): Converged policy.
     """
     if isinstance(input_cfg, str):
+        # 如果输出的是字符串类型，则认为是配置文件路径
         cfg, create_cfg = read_config(input_cfg)
         expert_cfg, expert_create_cfg = read_config(expert_cfg)
     else:
         cfg, create_cfg = deepcopy(input_cfg)
         expert_cfg, expert_create_cfg = expert_cfg
-    create_cfg.policy.type = create_cfg.policy.type + '_command'
-    expert_create_cfg.policy.type = expert_create_cfg.policy.type + '_command'
-    env_fn = None if env_setting is None else env_setting[0]
+    create_cfg.policy.type = create_cfg.policy.type + '_command' # todo 这里将policy type改成带command的干啥？
+    expert_create_cfg.policy.type = expert_create_cfg.policy.type + '_command' # todo 同上
+    env_fn = None if env_setting is None else env_setting[0]  # 在r2d3中，传入的是None
+    # 以下大概是将传入的进行整合和整理 todo
     cfg = compile_config(cfg, seed=seed, env=env_fn, auto=True, create_cfg=create_cfg, save_cfg=True)
     expert_cfg = compile_config(
         expert_cfg, seed=seed, env=env_fn, auto=True, create_cfg=expert_create_cfg, save_cfg=True
     )
     # Create main components: env, policy
+    # 获取环境的配置，如果是并行向量环境则得使用特定的方法
+    # env_fn： 环境的创建函数 todo
+    # collector_env_cfg： 采集环境的配置列表 todo
+    # evaluator_env_cfg： 评估环境的配置列表 todo
     if env_setting is None:
         env_fn, collector_env_cfg, evaluator_env_cfg = get_vec_env_setting(cfg.env)
     else:
         env_fn, collector_env_cfg, evaluator_env_cfg = env_setting
+    # 
     collector_env = create_env_manager(cfg.env.manager, [partial(env_fn, cfg=c) for c in collector_env_cfg])
     expert_collector_env = create_env_manager(
         expert_cfg.env.manager, [partial(env_fn, cfg=c) for c in collector_env_cfg]

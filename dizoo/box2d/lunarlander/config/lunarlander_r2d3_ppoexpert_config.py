@@ -1,4 +1,25 @@
 import os
+# EasyDict 是一个 Python 库，它提供了一个方便的字典类，允许你使用点号(.)语法来访问字典的键值对，就像访问对象属性一样。
+'''
+from easydict import EasyDict
+
+# 传统字典访问
+config = {
+    'env': {
+        'env_id': 'LunarLander-v2',
+        'stop_value': 200
+    }
+}
+value = config['env']['env_id']  # 需要使用方括号
+
+# 使用 EasyDict
+config = EasyDict(config)
+value = config.env.env_id  # 可以使用点号访问，更简洁
+
+# 两种方式都支持
+value1 = config.env.env_id      # 点号访问
+value2 = config['env']['env_id'] # 方括号访问
+'''
 from easydict import EasyDict
 
 module_path = os.path.dirname(__file__)
@@ -90,9 +111,9 @@ main_config = lunarlander_r2d3_config
 lunarlander_r2d3_create_config = dict(
     env=dict(
         type='lunarlander',
-        import_names=['dizoo.box2d.lunarlander.envs.lunarlander_env'],
+        import_names=['dizoo.box2d.lunarlander.envs.lunarlander_env'], # 用于动态导入环境模块
     ),
-    env_manager=dict(type='subprocess'),
+    env_manager=dict(type='subprocess'), # 环境管理器的类型，这里使用子进程方式管理多个环境实例
     policy=dict(type='r2d3'),
 )
 lunarlander_r2d3_create_config = EasyDict(lunarlander_r2d3_create_config)
@@ -103,7 +124,7 @@ expert_lunarlander_r2d3_config = dict(
     exp_name='expert_lunarlander_r2d3_ppoexpert_seed0',
     env=dict(
         # Whether to use shared memory. Only effective if "env_manager_type" is 'subprocess'
-        manager=dict(shared_memory=True, reset_inplace=True),
+        manager=dict(shared_memory=True, reset_inplace=True), # todo 内存管理的方式
         collector_env_num=collector_env_num,
         evaluator_env_num=evaluator_env_num,
         n_evaluator_episode=5,
@@ -149,9 +170,9 @@ expert_main_config = expert_lunarlander_r2d3_config
 expert_lunarlander_r2d3_create_config = dict(
     env=dict(
         type='lunarlander',
-        import_names=['dizoo.box2d.lunarlander.envs.lunarlander_env'],
+        import_names=['dizoo.box2d.lunarlander.envs.lunarlander_env'], # 用于动态导入环境模块
     ),
-    env_manager=dict(type='subprocess'),
+    env_manager=dict(type='subprocess'),  # 环境管理器的类型，这里使用子进程方式管理多个环境实例
     policy=dict(type='offppo_collect_traj'),  # this policy is designed to collect off-ppo expert traj for r2d3
 )
 expert_lunarlander_r2d3_create_config = EasyDict(expert_lunarlander_r2d3_create_config)
@@ -159,4 +180,5 @@ expert_create_config = expert_lunarlander_r2d3_create_config
 
 if __name__ == "__main__":
     from ding.entry import serial_pipeline_r2d3
+    # todo 给每个配置文件新增注释
     serial_pipeline_r2d3([main_config, create_config], [expert_main_config, expert_create_config], seed=0)
