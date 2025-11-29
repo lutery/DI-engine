@@ -67,6 +67,7 @@ class AsyncSubprocessEnvManager(BaseEnvManager):
         """
         Overview:
             Initialize the AsyncSubprocessEnvManager.
+            在本构造放啊放中主要就是记录一下异步参数，构建异步锁，无其他操作
         Arguments:
             - env_fn (:obj:`List[Callable]`): The function to create environment
             - cfg (:obj:`EasyDict`): Config
@@ -77,22 +78,24 @@ class AsyncSubprocessEnvManager(BaseEnvManager):
             - step_wait_timeout: for each time the minimum number of env return to gather
         """
         super().__init__(env_fn, cfg)
-        self._shared_memory = self._cfg.shared_memory
-        self._copy_on_get = self._cfg.copy_on_get
-        self._context = self._cfg.context
-        self._wait_num = self._cfg.wait_num
-        self._step_wait_timeout = self._cfg.step_wait_timeout
+        self._shared_memory = self._cfg.shared_memory # todo 
+        self._copy_on_get = self._cfg.copy_on_get # todo
+        self._context = self._cfg.context # todo
+        self._wait_num = self._cfg.wait_num # todo
+        self._step_wait_timeout = self._cfg.step_wait_timeout # todo
 
-        self._lock = LockContext(LockContextType.THREAD_LOCK)
-        self._connect_timeout = self._cfg.connect_timeout
+        self._lock = LockContext(LockContextType.THREAD_LOCK) # todo 这个看起来是线程锁
+        self._connect_timeout = self._cfg.connect_timeout # todo 连接超时时间，单位秒
+        # 这个看起来是异步的参数
         self._async_args = {
             'step': {
-                'wait_num': min(self._wait_num, self._env_num),
-                'timeout': self._step_wait_timeout
+                'wait_num': min(self._wait_num, self._env_num), # todo
+                'timeout': self._step_wait_timeout # todo 看起来是每次step所能接受的超时时间
             }
         }
-        self._reset_inplace = self._cfg.reset_inplace
+        self._reset_inplace = self._cfg.reset_inplace # todo
         if not self._auto_reset:
+            # auto reset和reset inplace看起来是要你配合使用的，如果auto reset不可用则reset inplace也不能用
             assert not self._reset_inplace, "reset_inplace is unavailable when auto_reset=False."
 
     def _create_state(self) -> None:
@@ -676,7 +679,8 @@ class AsyncSubprocessEnvManager(BaseEnvManager):
 
 @ENV_MANAGER_REGISTRY.register('subprocess')
 class SyncSubprocessEnvManager(AsyncSubprocessEnvManager):
-    # 子进程环境采样器
+    # 子进程环境采样器，本类中无构造函数，估计只是重写了一些异步方法
+    # todo 没有看到哪里创建了子进程
     # todo 以下配置的每个配置项的含义
     config = dict(
         episode_num=float("inf"),

@@ -112,6 +112,7 @@ class BaseEnvManager(object):
             cfg: EasyDict = EasyDict({}), # 看子类
     ) -> None:
         """
+        在本方法中主要就是记录了一些环境参数（包括动作空间、观察空间等）
         Overview:
             Initialize the base env manager with callable the env function and the EasyDict-type config. Here we use
             ``env_fn`` to ensure the lazy initialization of sub-environments, which is benetificial to resource
@@ -139,6 +140,10 @@ class BaseEnvManager(object):
             self._action_space = self._env_ref.action_space
             self._reward_space = self._env_ref.reward_space
         except:
+            # 这里说的是一些环境下需要先调用reset后才能获取到对应的动作空间、观察空间等信息
+            # 如果提前调用可能会报错，而对于有些环境（如dmc-mujoco)，如果在主进程中调用
+            # reset则会导致子进程中opengl崩溃（现在还在主进程中 todo 确认），所以尽量别调用
+            # 除非报错
             # For some environment,
             # we have to reset before getting observation description.
             # However, for dmc-mujoco, we should not reset the env at the main thread,
@@ -148,17 +153,17 @@ class BaseEnvManager(object):
             self._observation_space = self._env_ref.observation_space
             self._action_space = self._env_ref.action_space
             self._reward_space = self._env_ref.reward_space
-            self._env_ref.close()
-        self._env_states = {i: EnvState.VOID for i in range(self._env_num)}
-        self._env_seed = {i: None for i in range(self._env_num)}
-        self._episode_num = self._cfg.episode_num
-        self._max_retry = max(self._cfg.max_retry, 1)
-        self._auto_reset = self._cfg.auto_reset
-        self._retry_type = self._cfg.retry_type
-        assert self._retry_type in ['reset', 'renew'], self._retry_type
-        self._step_timeout = self._cfg.step_timeout
-        self._reset_timeout = self._cfg.reset_timeout
-        self._retry_waiting_time = self._cfg.retry_waiting_time
+            self._env_ref.close() # 即使调用了reset为了避免出错也是要手动调用close关闭释放资源
+        self._env_states = {i: EnvState.VOID for i in range(self._env_num)} # 存储每个子环境的状态，初始为VOID
+        self._env_seed = {i: None for i in range(self._env_num)} # 存储每个子环境的随机种子，初始为None
+        self._episode_num = self._cfg.episode_num # todo 总共要执行的环境回合数
+        self._max_retry = max(self._cfg.max_retry, 1) # todo 最大重试次数，至少为1
+        self._auto_reset = self._cfg.auto_reset # todo 是否自动重置子环境
+        self._retry_type = self._cfg.retry_type # todo 重试类型，reset or renew
+        assert self._retry_type in ['reset', 'renew'], self._retry_type # 断言重试类型合法
+        self._step_timeout = self._cfg.step_timeout # todo step方法的超时时间，单位秒，None表示无超时
+        self._reset_timeout = self._cfg.reset_timeout # todo reset方法的超时时间，单位秒，None表示无超时
+        self._retry_waiting_time = self._cfg.retry_waiting_time # todo 自动重试机制的间隔等待时间，单位秒
 
     @property
     def env_num(self) -> int:
@@ -500,7 +505,7 @@ class BaseEnvManager(object):
                 self._env_seed[env_id] = s
         else:
             raise TypeError("invalid seed arguments type: {}".format(type(seed)))
-        self._env_dynamic_seed = dynamic_seed
+        self._env_dynamic_seed = dynamic_seed # todo 对于专家和待训练模型来说这里应该都是None，但是为什么对于验证模型来说会是False呢？
         try:
             self._action_space.seed(seed[0])
         except Exception:  # TODO(nyz) deal with nested action_space like SMAC
@@ -658,6 +663,7 @@ def create_env_manager(manager_cfg: EasyDict, env_fn: List[Callable]) -> BaseEnv
             as ``ding.envs.env_manager.base_env_manager`` .
     Returns:
         - env_manager (:obj:`BaseEnvManager`): The created env manager.
+        - 返回创建的一个环境管理器，用于管理多个子环境属性，但是对于异步的环境，没有看到有创建子线程或者进程或正式创建环境的地方 todo
 
     .. tip::
         This method will not modify the ``manager_cfg`` , it will deepcopy the ``manager_cfg`` and then modify it.
@@ -668,6 +674,7 @@ def create_env_manager(manager_cfg: EasyDict, env_fn: List[Callable]) -> BaseEnv
         import_module(manager_cfg.pop('import_names'))
     # 获取管理环境执行的方式，比如子进程里面去执行
     manager_type = manager_cfg.pop('type')
+    # 调用ENV_MANAGER_REGISTRY注册的工厂函数，传入环境函数和配置，构建对应类型的环境管理器，比如游戏环境管理器
     return ENV_MANAGER_REGISTRY.build(manager_type, env_fn=env_fn, cfg=manager_cfg)
 
 

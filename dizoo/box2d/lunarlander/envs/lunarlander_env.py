@@ -13,7 +13,7 @@ from ding.torch_utils import to_ndarray
 from ding.utils import ENV_REGISTRY
 
 
-@ENV_REGISTRY.register('lunarlander')
+@ENV_REGISTRY.register('lunarlander') # 这里将LunarLanderEnv类注册到ENV_REGISTRY注册表中，注册名为'lunarlander'，这样就可以根据配置从注册表中动态创建环境实例
 class LunarLanderEnv(BaseEnv):
 
     config = dict(
