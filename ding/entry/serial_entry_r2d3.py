@@ -72,14 +72,18 @@ def serial_pipeline_r2d3(
         env_fn, collector_env_cfg, evaluator_env_cfg = get_vec_env_setting(cfg.env)
     else:
         env_fn, collector_env_cfg, evaluator_env_cfg = env_setting
-    # 
+    # todo 这里应该是专门用于r2d3的采集数据的环境
     collector_env = create_env_manager(cfg.env.manager, [partial(env_fn, cfg=c) for c in collector_env_cfg])
+    # todo 这里应该是专门用于r2d3中扮演专家的算法采集数据的环境
     expert_collector_env = create_env_manager(
         expert_cfg.env.manager, [partial(env_fn, cfg=c) for c in collector_env_cfg]
     )
+    # 评估环境
     evaluator_env = create_env_manager(cfg.env.manager, [partial(env_fn, cfg=c) for c in evaluator_env_cfg])
+    # 专家采集环境和普通采集环境都设置相同的随机种子
     expert_collector_env.seed(cfg.seed)
     collector_env.seed(cfg.seed)
+    # 评估网络
     evaluator_env.seed(cfg.seed, dynamic_seed=False)
     expert_policy = create_policy(expert_cfg.policy, model=expert_model, enable_field=['collect', 'command'])
     set_pkg_seed(cfg.seed, use_cuda=cfg.policy.cuda)
