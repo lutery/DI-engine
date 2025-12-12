@@ -119,13 +119,13 @@ lunarlander_r2d3_create_config = dict(
 lunarlander_r2d3_create_config = EasyDict(lunarlander_r2d3_create_config)
 create_config = lunarlander_r2d3_create_config
 """export config"""
-
+# 对于r2d3算法中专家配置文件，主要是用于配置专家策略的相关参数和环境设置
 expert_lunarlander_r2d3_config = dict(
     exp_name='expert_lunarlander_r2d3_ppoexpert_seed0',
     env=dict(
         # Whether to use shared memory. Only effective if "env_manager_type" is 'subprocess'
         manager=dict(shared_memory=True, reset_inplace=True), # todo 内存管理的方式
-        collector_env_num=collector_env_num,
+        collector_env_num=collector_env_num, # todo 这个是干嘛
         evaluator_env_num=evaluator_env_num,
         n_evaluator_episode=5,
         stop_value=200,
@@ -165,11 +165,12 @@ expert_lunarlander_r2d3_config = dict(
         ),
     ),
 )
+
 expert_lunarlander_r2d3_config = EasyDict(expert_lunarlander_r2d3_config)
 expert_main_config = expert_lunarlander_r2d3_config
 expert_lunarlander_r2d3_create_config = dict(
     env=dict(
-        type='lunarlander',
+        type='lunarlander', # 这里从工厂注册其中获取对应的环境创建类
         import_names=['dizoo.box2d.lunarlander.envs.lunarlander_env'], # 用于动态导入环境模块
     ),
     env_manager=dict(type='subprocess'),  # 环境管理器的类型，这里使用子进程方式管理多个环境实例

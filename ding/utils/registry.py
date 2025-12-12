@@ -3,7 +3,7 @@ import os
 from collections import OrderedDict
 from typing import Optional, Iterable, Callable
 
-_innest_error = True
+_innest_error = True # todo 这是干嘛
 
 # 从配置文件或者环境变量中获取
 _DI_ENGINE_REG_TRACE_IS_ON = os.environ.get('DIENGINEREGTRACE', 'OFF').upper() == 'ON'
@@ -136,19 +136,22 @@ class Registry(dict):
         """
 
         try:
-            build_fn = self[obj_type] # 这里可以这么使用因为继承了字典类型
-            return build_fn(*obj_args, **obj_kwargs)
+            build_fn = self[obj_type] # 这里可以这么使用因为继承了字典类型，根据提取的管理器启动的类型（比如子进程），获取对应的工厂
+            return build_fn(*obj_args, **obj_kwargs) # 调用对应的工厂，传入参数，构建对象，构架对应类型的管理器，比如游戏环境管理器
         except Exception as e:
             # get build_fn fail
             if isinstance(e, KeyError):
+                # 这里针对的是找不到注册类型的情况
                 raise KeyError("not support buildable-object type: {}".format(obj_type))
             # build_fn execution fail
-            global _innest_error
+            # 如果是构建函数执行失败
+            global _innest_error # 获取一个全局标识，因为可能是多线程模式，所以得加一个标识，否则会重复打印
             if _innest_error:
-                argspec = inspect.getfullargspec(build_fn)
+                # 构建失败的原因可能是因为参数不匹配、类型错误等，这里打印一些调试信息，帮助定位问题
+                argspec = inspect.getfullargspec(build_fn) # 获取构建函数的参数信息
                 message = 'Hint: for {}(alias={})'.format(build_fn, obj_type)
                 message += '\n\nExpected args are:\n {}\nGiven arguments keys are:\n{}\n'.format(
-                    argspec, obj_kwargs.keys()
+                    argspec, obj_kwargs.keys() # 这里是打印函数的参数信息和传入的参数调试信息
                 )
                 print(message)
                 _innest_error = False

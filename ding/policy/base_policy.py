@@ -863,6 +863,12 @@ def create_policy(cfg: EasyDict, **kwargs) -> Policy:
         For more details about how to merge config, please refer to the system document of DI-engine \
         (`en link <../03_system/config.html>`_).
     """
+    ''' 
+    r2d3传入的参数
+    expert_cfg.policy：专家网络的配置参数
+    model：专家网络的模型实例，如果传入了则使用传入的，否则根据配置创建
+    enable_field=['collect', 'command']： 启用专家网络的模式，这里启用了采集和命令模式 todo collect 和 command模式是干啥的？    
+    '''
     import_module(cfg.get('import_names', []))
     return POLICY_REGISTRY.build(cfg.type, cfg=cfg, **kwargs)
 

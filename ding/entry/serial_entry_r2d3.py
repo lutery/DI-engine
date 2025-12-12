@@ -72,19 +72,23 @@ def serial_pipeline_r2d3(
         env_fn, collector_env_cfg, evaluator_env_cfg = get_vec_env_setting(cfg.env)
     else:
         env_fn, collector_env_cfg, evaluator_env_cfg = env_setting
-    # todo 这里应该是专门用于r2d3的采集数据的环境
+    # 调用ENV_MANAGER_REGISTRY注册的工厂函数，传入环境函数和配置，构建对应类型的环境管理器，比如游戏环境管理器
+    # cfg.env.manager： 环境管理器的配置，比如子进程以及创建环境时传入的参数等
+    # env_fn： 环境的创建函数
+    # collector_env_cfg： 环境创建对应的配置列表，每一个环境对应一个配置，这样方便进行不同环境的特殊处理，当然也可以不处理，所有环境都用同一个配置
     collector_env = create_env_manager(cfg.env.manager, [partial(env_fn, cfg=c) for c in collector_env_cfg])
-    # todo 这里应该是专门用于r2d3中扮演专家的算法采集数据的环境
+    # todo 这里是创建专家采集环境
     expert_collector_env = create_env_manager(
         expert_cfg.env.manager, [partial(env_fn, cfg=c) for c in collector_env_cfg]
     )
-    # 评估环境
+    # todo 这里是创建评估环境
     evaluator_env = create_env_manager(cfg.env.manager, [partial(env_fn, cfg=c) for c in evaluator_env_cfg])
-    # 专家采集环境和普通采集环境都设置相同的随机种子
+    # 为保证不同模型的环境一致性，手动指定不同环境的种子
     expert_collector_env.seed(cfg.seed)
     collector_env.seed(cfg.seed)
-    # 评估网络
+    # todo 这里的dynamic_seed为什么是False呢？
     evaluator_env.seed(cfg.seed, dynamic_seed=False)
+    # 创建专家策略和待训练策略
     expert_policy = create_policy(expert_cfg.policy, model=expert_model, enable_field=['collect', 'command'])
     set_pkg_seed(cfg.seed, use_cuda=cfg.policy.cuda)
     policy = create_policy(cfg.policy, model=model, enable_field=['learn', 'collect', 'eval', 'command'])
