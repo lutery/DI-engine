@@ -101,7 +101,7 @@ class Policy(ABC):
 
     def __init__(
             self,
-            cfg: EasyDict,
+            cfg: EasyDict, 
             model: Optional[torch.nn.Module] = None,
             enable_field: Optional[List[str]] = None
     ) -> None:
@@ -114,27 +114,29 @@ class Policy(ABC):
             then all fields will be initialized.
         Arguments:
             - cfg (:obj:`EasyDict`): The final merged config used to initialize policy. For the default config, \
-                see the ``config`` attribute and its comments of policy class.
+                see the ``config`` attribute and its comments of policy class. 配置参数
             - model (:obj:`torch.nn.Module`): The neural network model used to initialize policy. If it \
                 is None, then the model will be created according to ``default_model`` method and ``cfg.model`` field. \
-                Otherwise, the model will be set to the ``model`` instance created by outside caller.
+                Otherwise, the model will be set to the ``model`` instance created by outside caller. 传入模型，但是在r2d3中传入的是None
             - enable_field (:obj:`Optional[List[str]]`): The field list to initialize. If it is None, then all fields \
                 will be initialized. Otherwise, only the fields in ``enable_field`` will be initialized, which is \
-                beneficial to save resources.
+                beneficial to save resources. todo 不清楚，但是在r2d3中传入的是None
 
         .. note::
             For the derived policy class, it should implement the ``_init_learn``, ``_init_collect``, ``_init_eval`` \
             method to initialize the corresponding field.
         """
-        self._cfg = cfg
-        self._on_policy = self._cfg.on_policy
-        if enable_field is None:
+        self._cfg = cfg # 保存配置参数
+        self._on_policy = self._cfg.on_policy # 是否是on_policy，on_poilicy在r2d3 ppo中是False，r2d2是off-policy，但是为啥ppo也是配置false参数呢？todo
+        if enable_field is None: # todo 这里是啥意思，目前r2d3传入的是None
             self._enable_field = self.total_field
         else:
             self._enable_field = enable_field
         assert set(self._enable_field).issubset(self.total_field), self._enable_field
-
+        
+        # intersection 判断是否有交集，todo 为啥要判断
         if len(set(self._enable_field).intersection(set(['learn', 'collect', 'eval']))) > 0:
+            # 如果是开启了learn/collect/eval模式，那么就创建模型
             model = self._create_model(cfg, model)
             self._cuda = cfg.cuda and torch.cuda.is_available()
             # now only support multi-gpu for only enable learn mode
@@ -200,6 +202,7 @@ class Policy(ABC):
     def _create_model(self, cfg: EasyDict, model: Optional[torch.nn.Module] = None) -> torch.nn.Module:
         """
         Overview:
+            创建模型，如果传入的model是None，那么就根据cfg.model来创建模型，否则就验证传入的model是否合法使用传入的model
             Create or validate the neural network model according to the input configuration and model. \
             If the input model is None, then the model will be created according to ``default_model`` \
             method and ``cfg.model`` field. Otherwise, the model will be verified as an instance of \
@@ -216,10 +219,10 @@ class Policy(ABC):
         """
         if model is None:
             model_cfg = cfg.model
-            if 'type' not in model_cfg:
+            if 'type' not in model_cfg: # 这里应该是判断用户有没有在配置文件中指定模型类型，如果没有则使用默认模型
                 m_type, import_names = self.default_model()
-                model_cfg.type = m_type
-                model_cfg.import_names = import_names
+                model_cfg.type = m_type # 默认模型的注册名称
+                model_cfg.import_names = import_names # 后续要动态import的模块
             return create_model(model_cfg)
         else:
             if isinstance(model, torch.nn.Module):
@@ -847,7 +850,7 @@ def create_policy(cfg: EasyDict, **kwargs) -> Policy:
     Overview:
         Create a policy instance according to ``cfg`` and other kwargs.
     Arguments:
-        - cfg (:obj:`EasyDict`): Final merged policy config.
+        - cfg (:obj:`EasyDict`): Final merged policy config.,
     ArgumentsKeys:
         - type (:obj:`str`): Policy type set in ``POLICY_REGISTRY.register`` method , such as ``dqn`` .
         - import_names (:obj:`List[str]`): A list of module names (paths) to import before creating policy, such \
