@@ -219,7 +219,7 @@ class Policy(ABC):
         """
         if model is None:
             model_cfg = cfg.model
-            if 'type' not in model_cfg: # 这里应该是判断用户有没有在配置文件中指定模型类型，如果没有则使用默认模型
+            if 'type' not in model_cfg: # 这里应该是判断用户有没有在配置文件中指定模型类型，如果没有则使用默认模型，在r2d3 ppo中没有指定模型类型，所以会调用默认模型
                 m_type, import_names = self.default_model()
                 model_cfg.type = m_type # 默认模型的注册名称
                 model_cfg.import_names = import_names # 后续要动态import的模块

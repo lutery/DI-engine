@@ -31,6 +31,7 @@ class DiscreteHead(nn.Module):
         noise: Optional[bool] = False,
     ) -> None:
         """
+        离散动作层，由一个线性主干层和输出层组成（输出层可以是噪音线性层或者是普通线性层）
         Overview:
             Init the ``DiscreteHead`` layers according to the provided arguments.
         Arguments:
@@ -1030,6 +1031,7 @@ class RegressionHead(nn.Module):
         The ``RegressionHead`` is used to regress continuous variables.
         This module is used for generating Q-value (DDPG critic) of continuous actions, \
         or state value (A2C/PPO), or directly predicting continuous action (DDPG actor).
+        RegressionHead用于回归连续变量。该模块可生成连续动作的Q值（DDPG算法的critic网络），或状态价值（A2C/PPO算法），或直接预测连续动作（DDPG算法的actor网络）。
     Interfaces:
         ``__init__``, ``forward``.
     """
@@ -1059,11 +1061,12 @@ class RegressionHead(nn.Module):
         """
         super(RegressionHead, self).__init__()
         if hidden_size is None:
-            hidden_size = input_size
-        self.main = MLP(input_size, hidden_size, hidden_size, layer_num, activation=activation, norm_type=norm_type)
-        self.last = nn.Linear(hidden_size, output_size)  # for convenience of special initialization
+            hidden_size = input_size # 如果隐藏层的shape没有传入，则保持隐藏层的尺寸和输入的一致
+        self.main = MLP(input_size, hidden_size, hidden_size, layer_num, activation=activation, norm_type=norm_type) # 创建一个主干线性层提取特征
+        self.last = nn.Linear(hidden_size, output_size)  # for convenience of special initialization 创建输出层，输出指定的维度：比如价值的维度是1，连续动作就是动作的维度
         self.final_tanh = final_tanh
         if self.final_tanh:
+            # 最终的激活输出，这个大概就是如果输出的动作为-1～1的话，可以直接用这个Tanh，默认是False，不使用
             self.tanh = nn.Tanh()
 
     def forward(self, x: torch.Tensor) -> Dict:
@@ -1096,6 +1099,7 @@ class RegressionHead(nn.Module):
 class ReparameterizationHead(nn.Module):
     """
     Overview:
+        这里其实就是构建一个输出均值和方差的网络，常用于连续动作预测
         The ``ReparameterizationHead`` is used to generate Gaussian distribution of continuous variable, \
         which is parameterized by ``mu`` and ``sigma``.
         This module is often used in stochastic policies, such as PPO and SAC.
@@ -1112,11 +1116,11 @@ class ReparameterizationHead(nn.Module):
             input_size: int,
             output_size: int,
             layer_num: int = 2,
-            sigma_type: Optional[str] = None,
+            sigma_type: Optional[str] = None, # 必填，交由外部传入 todo 作用
             fixed_sigma_value: Optional[float] = 1.0,
             activation: Optional[nn.Module] = nn.ReLU(),
             norm_type: Optional[str] = None,
-            bound_type: Optional[str] = None,
+            bound_type: Optional[str] = None, # 必填，交由外部传入，todo 作用
             hidden_size: int = None
     ) -> None:
         """
@@ -1148,8 +1152,11 @@ class ReparameterizationHead(nn.Module):
         assert bound_type in self.default_bound_type, "Please indicate bound_type as one of {}".format(
             self.default_bound_type
         )
+        # 一个线性特征提取主干
         self.main = MLP(input_size, hidden_size, hidden_size, layer_num, activation=activation, norm_type=norm_type)
+        # 一个均值预测头
         self.mu = nn.Linear(hidden_size, output_size)
+        # 下面是构建方差预测模块，可以是固定方差，也可以是可以训练的一个参数，也可以是单独的线性预测层，如果是HAPPO，那么其的方差是一个shape等于output_size的训练参数
         if self.sigma_type == 'fixed':
             self.sigma = torch.full((1, output_size), fixed_sigma_value)
         elif self.sigma_type == 'independent':  # independent parameter
@@ -1157,6 +1164,7 @@ class ReparameterizationHead(nn.Module):
         elif self.sigma_type == 'conditioned':
             self.log_sigma_layer = nn.Linear(hidden_size, output_size)
         elif self.sigma_type == 'happo':
+            # todo happo
             self.sigma_x_coef = 1.
             self.sigma_y_coef = 0.5
             # This parameter (x_coef, y_coef) refers to the HAPPO paper http://arxiv.org/abs/2109.11251.
@@ -1324,6 +1332,8 @@ class MultiHead(nn.Module):
     def __init__(self, head_cls: type, hidden_size: int, output_size_list: SequenceType, **head_kwargs) -> None:
         """
         Overview:
+            多头预测层，对于多个独立的离散动作组中有用
+            构建方式就是很简单的构建多个独立的离散动作组预测网络
             Init the ``MultiHead`` layers according to the provided arguments.
         Arguments:
             - head_cls (:obj:`type`): The class of head, choose among [``DuelingHead``, ``DistributionHead``, \

@@ -25,6 +25,7 @@ class ConvEncoder(nn.Module):
     """
     Overview:
         The Convolution Encoder is used to encode 2-dim image observations.
+        用于图像特征的特征提取器
     Interfaces:
         ``__init__``, ``forward``.
     """
@@ -159,6 +160,7 @@ class FCEncoder(nn.Module):
     """
     Overview:
         The full connected encoder is used to encode 1-dim input variable.
+        用于1维特征的特征提取器
     Interfaces:
         ``__init__``, ``forward``.
     """

@@ -13,6 +13,7 @@ from ding.torch_utils.network.dreamer import ActionHead, DenseHead
 class VAC(nn.Module):
     """
     Overview:
+        VAC网络就是一个典型的actor-critic架构的实现。而PPO也属于这类型的网络
         The neural network and computation graph of algorithms related to (state) Value Actor-Critic (VAC), such as \
         A2C/PPO/IMPALA. This model now supports discrete, continuous and hybrid action space. The VAC is composed of \
         four parts: ``actor_encoder``, ``critic_encoder``, ``actor_head`` and ``critic_head``. Encoders are used to \
@@ -73,35 +74,42 @@ class VAC(nn.Module):
                 to ``None``, which means no bound.
             - encoder (:obj:`Optional[torch.nn.Module]`): The encoder module, defaults to ``None``, you can define \
                 your own encoder module and pass it into VAC to deal with different observation space.
-            - impala_cnn_encoder (:obj:`bool`): Whether to use IMPALA CNN encoder, defaults to ``False``.
+            - impala_cnn_encoder (:obj:`bool`): Whether to use IMPALA CNN encoder, defaults to ``False``. 一种具备残差结构的卷积网络，比普通卷积网络更深更强大，但在r2d3 ppo中没有使用
         """
         super(VAC, self).__init__()
         obs_shape: int = squeeze(obs_shape)
         action_shape = squeeze(action_shape)
         self.obs_shape, self.action_shape = obs_shape, action_shape
-        self.impala_cnn_encoder = impala_cnn_encoder
-        self.share_encoder = share_encoder
+        self.impala_cnn_encoder = impala_cnn_encoder # 在r2d3 ppo中没有传入，为False
+        self.share_encoder = share_encoder # 看起来是共享编码器，在r2d3 ppo中没有传入参数，为True
 
         # Encoder Type
         def new_encoder(outsize, activation):
-            if impala_cnn_encoder:
+            '''
+            Docstring for new_encoder
+            
+            :param outsize: 输出的特征维度
+            :param activation: 激活函数
+            '''
+
+            if impala_cnn_encoder: # r2d3 ppo中没有使用 todo 后续自己看看，说不定可以应用在自己的项目中
                 return IMPALAConvEncoder(obs_shape=obs_shape, channels=encoder_hidden_size_list, outsize=outsize)
             else:
-                if isinstance(obs_shape, int) or len(obs_shape) == 1:
+                if isinstance(obs_shape, int) or len(obs_shape) == 1: # 针对输入的特征是一个向量的特征，例如 mujoco 模拟环境中的状态特征
                     return FCEncoder(
                         obs_shape=obs_shape,
                         hidden_size_list=encoder_hidden_size_list,
                         activation=activation,
                         norm_type=norm_type
                     )
-                elif len(obs_shape) == 3:
+                elif len(obs_shape) == 3: # 针对输入的特征是一个图像，例如 Atari 游戏环境中的图像特征
                     return ConvEncoder(
                         obs_shape=obs_shape,
                         hidden_size_list=encoder_hidden_size_list,
                         activation=activation,
                         norm_type=norm_type
                     )
-                else:
+                else: # 除此之外的其他输入特征均不支持
                     raise RuntimeError(
                         "not support obs_shape for pre-defined encoder: {}, please customize your own encoder".
                         format(obs_shape)
@@ -109,13 +117,16 @@ class VAC(nn.Module):
 
         if self.share_encoder:
             if encoder:
+                # 如果外部有传入则使用外部的，如果没有传入则自己创建
                 if isinstance(encoder, torch.nn.Module):
                     self.encoder = encoder
                 else:
                     raise ValueError("illegal encoder instance.")
             else:
+                # 创建默认obs编码器
                 self.encoder = new_encoder(encoder_hidden_size_list[-1], activation)
         else:
+            # 如果不共享编码器，那么动作编码器和价值编码器是分开计算权重的
             if encoder:
                 if isinstance(encoder, torch.nn.Module):
                     self.actor_encoder = encoder
@@ -126,19 +137,21 @@ class VAC(nn.Module):
                 self.actor_encoder = new_encoder(encoder_hidden_size_list[-1], activation)
                 self.critic_encoder = new_encoder(encoder_hidden_size_list[-1], activation)
 
-        # Head Type
+        # Head Type 价值预测头，这里就是直接输出预测的价值
         self.critic_head = RegressionHead(
-            encoder_hidden_size_list[-1],
+            encoder_hidden_size_list[-1], # 输入的特征维度
             1,
             critic_head_layer_num,
             activation=activation,
             norm_type=norm_type,
             hidden_size=critic_head_hidden_size
         )
-        self.action_space = action_space
-        assert self.action_space in ['discrete', 'continuous', 'hybrid'], self.action_space
+        self.action_space = action_space # 动作空间的类型，字符串类型，根据不同的动作空间的类型，创建不同的动作头
+        assert self.action_space in ['discrete', 'continuous', 'hybrid'], self.action_space # 仅支持离散、连续、混合动作空间
+        # self.multi_head 是啥？
         if self.action_space == 'continuous':
-            self.multi_head = False
+            self.multi_head = False # 连续动作空间不支持多头 todo
+            # 构建连续动作预测
             self.actor_head = ReparameterizationHead(
                 encoder_hidden_size_list[-1],
                 action_shape,
@@ -150,9 +163,9 @@ class VAC(nn.Module):
                 hidden_size=actor_head_hidden_size,
             )
         elif self.action_space == 'discrete':
-            actor_head_cls = DiscreteHead
+            actor_head_cls = DiscreteHead # 离散动作头的类型
             multi_head = not isinstance(action_shape, int)
-            self.multi_head = multi_head
+            self.multi_head = multi_head # 离散动作空间是否是多个独立的离散动作空间
             if multi_head:
                 self.actor_head = MultiHead(
                     actor_head_cls,
@@ -171,6 +184,7 @@ class VAC(nn.Module):
                     norm_type=norm_type
                 )
         elif self.action_space == 'hybrid':  # HPPO
+            # 混合动作空间就没有多头之分了 todo 后续再说，本次不看
             # hybrid action space: action_type(discrete) + action_args(continuous),
             # such as {'action_type_shape': torch.LongTensor([0]), 'action_args_shape': torch.FloatTensor([0.1, -0.27])}
             action_shape.action_args_shape = squeeze(action_shape.action_args_shape)
@@ -195,6 +209,7 @@ class VAC(nn.Module):
             )
             self.actor_head = nn.ModuleList([actor_action_type, actor_action_args])
 
+        # 根据是否共享特征提取层，构建不同组合
         if self.share_encoder:
             self.actor = [self.encoder, self.actor_head]
             self.critic = [self.encoder, self.critic_head]
@@ -203,6 +218,7 @@ class VAC(nn.Module):
             self.critic = [self.critic_encoder, self.critic_head]
         # Convenient for calling some apis (e.g. self.critic.parameters()),
         # but may cause misunderstanding when `print(self)`
+        # 构建实际的动作和评价预测网络
         self.actor = nn.ModuleList(self.actor)
         self.critic = nn.ModuleList(self.critic)
 

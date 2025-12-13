@@ -109,6 +109,7 @@ class ResFCBlock(nn.Module):
     """
     Overview:
         Residual Block with 2 fully connected layers.
+        用于特征提取器的残差块，结构如下：
         x -> fc1 -> norm -> act -> fc2 -> norm -> act -> out
         \_____________________________________/+
 
@@ -134,6 +135,7 @@ class ResFCBlock(nn.Module):
             self.dropout = nn.Dropout(dropout)
         else:
             self.dropout = None
+        # 构建两个全连接层，要注意这里的输入和输出都没有变化，主要是为了后续的残差链接
         self.fc1 = fc_block(in_channels, in_channels, activation=self.act, norm_type=norm_type)
         self.fc2 = fc_block(in_channels, in_channels, activation=None, norm_type=norm_type)
 

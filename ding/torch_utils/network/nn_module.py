@@ -57,6 +57,8 @@ def sequential_pack(layers: List[nn.Module]) -> nn.Sequential:
     assert isinstance(layers, list)
     seq = nn.Sequential(*layers)
     for item in reversed(layers):
+        # out_channels是临时添加的一个输出通道的属性 todo 为啥？
+        # 找到最后一个卷积层，将其的输出通道数存储到out_channels中
         if isinstance(item, nn.Conv2d) or isinstance(item, nn.ConvTranspose2d):
             seq.out_channels = item.out_channels
             break
@@ -406,8 +408,10 @@ def MLP(
     """
     assert layer_num >= 0, layer_num
     if layer_num == 0:
+        # 针对层数为0的也进行了特殊的构建
         return sequential_pack([nn.Identity()])
 
+    # 创建一个列表用于构建全链接层
     channels = [in_channels] + [hidden_channels] * (layer_num - 1) + [out_channels]
     if layer_fn is None:
         layer_fn = nn.Linear
@@ -420,7 +424,8 @@ def MLP(
             block.append(activation)
         if use_dropout:
             block.append(nn.Dropout(dropout_probability))
-
+    
+    # 对最后一层进行单独构建，因为激活函数或者其他的参数可以单独构建
     # The last layer
     in_channels = channels[-2]
     out_channels = channels[-1]
@@ -441,6 +446,7 @@ def MLP(
         if use_dropout:
             block.append(nn.Dropout(dropout_probability))
 
+    # 初始化最后一个线性的权重为0
     if last_linear_layer_init_zero:
         # Locate the last linear layer and initialize its weights and biases to 0.
         for _, layer in enumerate(reversed(block)):
@@ -670,7 +676,7 @@ class NoiseLinearLayer(nn.Module):
         """
 
         x = torch.randn(size)
-        x = x.sign().mul(x.abs().sqrt())
+        x = x.sign().mul(x.abs().sqrt()) # 查看markdown
         return x
 
     def reset_noise(self):
@@ -709,12 +715,16 @@ class NoiseLinearLayer(nn.Module):
         """
         # Determine whether to add noise:
         if self.enable_noise:
+            # 如果开启了噪音，则在计算时加入噪音权重
+            # 添加噪音的方式主要是通过weight_eps，这是一个无法训练的权重，在训练时会加入这个噪音，使得模型的预测
+            # 轨迹不会稳定的朝着想要的方向变化
             return F.linear(
                 x,
                 self.weight_mu + self.weight_sigma * self.weight_eps,
                 self.bias_mu + self.bias_sigma * self.bias_eps,
             )
         else:
+            # 如果没有开启噪音则是普通的线性层
             return F.linear(x, self.weight_mu, self.bias_mu)
 
 

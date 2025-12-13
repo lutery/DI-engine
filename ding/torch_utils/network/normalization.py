@@ -5,11 +5,12 @@ import torch.nn as nn
 def build_normalization(norm_type: str, dim: Optional[int] = None) -> nn.Module:
     """
     Overview:
+        根据传入的字符串，匹配需要的归一化模块，并返回该模块的类。
         Construct the corresponding normalization module. For beginners,
         refer to [this article](https://zhuanlan.zhihu.com/p/34879333) to learn more about batch normalization.
     Arguments:
         - norm_type (:obj:`str`): Type of the normalization. Currently supports ['BN', 'LN', 'IN', 'SyncBN'].
-        - dim (:obj:`Optional[int]`): Dimension of the normalization, applicable when norm_type is in ['BN', 'IN'].
+        - dim (:obj:`Optional[int]`): Dimension of the normalization, applicable when norm_type is in ['BN', 'IN']. 该参数是说明需要构建的归一化模块的维度
     Returns:
         - norm_func (:obj:`nn.Module`): The corresponding batch normalization function.
     """
