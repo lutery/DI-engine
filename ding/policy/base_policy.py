@@ -128,7 +128,7 @@ class Policy(ABC):
         """
         self._cfg = cfg # 保存配置参数
         self._on_policy = self._cfg.on_policy # 是否是on_policy，on_poilicy在r2d3 ppo中是False，r2d2是off-policy，但是为啥ppo也是配置false参数呢？todo
-        if enable_field is None: # todo 这里是啥意思，目前r2d3传入的是None
+        if enable_field is None: # todo 这里是啥意思，目前r2d3传入的是None，大概是说明当前的policy用于的场景，分别支持：学习训练、采集样本、验证模型
             self._enable_field = self.total_field
         else:
             self._enable_field = enable_field
@@ -137,17 +137,17 @@ class Policy(ABC):
         # intersection 判断是否有交集，todo 为啥要判断
         if len(set(self._enable_field).intersection(set(['learn', 'collect', 'eval']))) > 0:
             # 如果是开启了learn/collect/eval模式，那么就创建模型
-            model = self._create_model(cfg, model)
+            model = self._create_model(cfg, model) # 完成模型创建，在r2d3中，专家网络构建的是vac模型类
             self._cuda = cfg.cuda and torch.cuda.is_available()
             # now only support multi-gpu for only enable learn mode
             if len(set(self._enable_field).intersection(set(['learn']))) > 0:
-                multi_gpu = self._cfg.multi_gpu
-                self._rank = get_rank() if multi_gpu else 0
+                multi_gpu = self._cfg.multi_gpu # 获取是否是多gpu训练
+                self._rank = get_rank() if multi_gpu else 0 # 获取当前的进行好，只有0号进程还是主进程，控制器其他子进程
                 if self._cuda:
                     # model.cuda() is an in-place operation.
                     model.cuda()
                 if multi_gpu:
-                    bp_update_sync = self._cfg.bp_update_sync
+                    bp_update_sync = self._cfg.bp_update_sync # todo 这个参数是干嘛的？
                     self._bp_update_sync = bp_update_sync
                     self._init_multi_gpu_setting(model, bp_update_sync)
             else:
@@ -171,31 +171,40 @@ class Policy(ABC):
         Overview:
             Initialize multi-gpu data parallel training setting, including broadcast model parameters at the beginning \
             of the training, and prepare the hook function to allreduce the gradients of model parameters.
+            具体看markdown
+        初始化多 GPU 数据并行训练设置，包括：
+        1. 在训练开始时广播模型参数
+        2. 准备钩子函数来 allreduce 模型参数的梯度
         Arguments:
-            - model (:obj:`torch.nn.Module`): The neural network model to be trained.
+            - model (:obj:`torch.nn.Module`): The neural network model to be trained. 待训练的模型
             - bp_update_sync (:obj:`bool`): Whether to synchronize update the model parameters after allreduce the \
                 gradients of model parameters. Async update can be parallel in different network layers like pipeline \
                 so that it can save time.
+            是否同步更新模型参数
+          - True: 先 allreduce 所有梯度，再统一更新参数（同步模式）
+          - False: 边 allreduce 边更新，实现流水线并行（异步模式）
         """
         for name, param in model.state_dict().items():
-            assert isinstance(param.data, torch.Tensor), type(param.data)
-            broadcast(param.data, 0)
+            assert isinstance(param.data, torch.Tensor), type(param.data) # 模型梯度必须是pytorch类型
+            broadcast(param.data, 0) # 从主进程广播梯度参数到其他进程，避免因为不同的gpu不同的初始化参数
         # here we manually set the gradient to zero tensor at the beginning of the training, which is necessary for
         # the case that different GPUs have different computation graph.
-        for name, param in model.named_parameters():
+        for name, param in model.named_parameters(): # 手动将梯度设置为全0张量，因为在后续同步梯度时，如果有存在None没有创建的张量则会报错，所以初始化为0
             setattr(param, 'grad', torch.zeros_like(param))
         if not bp_update_sync:
-
+            # 异步模式
+            # 通过为每个需要求梯度的参数注册一个钩子，在每次梯度更新后就将梯度同步过去
             def make_hook(name, p):
 
                 def hook(*ignore):
-                    allreduce_async(name, p.grad.data)
+                    allreduce_async(name, p.grad.data) # 异步同步梯度的方法 todo 具体
 
                 return hook
 
             for i, (name, p) in enumerate(model.named_parameters()):
                 if p.requires_grad:
                     p_tmp = p.expand_as(p)
+                    # 在梯度累加器上注册钩子，
                     grad_acc = p_tmp.grad_fn.next_functions[0][0]
                     grad_acc.register_hook(make_hook(name, p))
 
