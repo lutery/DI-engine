@@ -13,6 +13,7 @@ class Conv2dSame(torch.nn.Conv2d):
     """
     Overview:
          Conv2dSame Network for dreamerv3.
+         这个卷积是保证不同输出的shape下
     Interfaces:
         ``__init__``, ``forward``
     """

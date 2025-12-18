@@ -38,7 +38,7 @@ class ConvEncoder(nn.Module):
             kernel_size: SequenceType = [8, 4, 3],
             stride: SequenceType = [4, 2, 1],
             padding: Optional[SequenceType] = None,
-            layer_norm: Optional[bool] = False,
+            layer_norm: Optional[bool] = False, # 使用是否层归一化
             norm_type: Optional[str] = None
     ) -> None:
         """
