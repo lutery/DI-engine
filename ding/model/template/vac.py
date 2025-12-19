@@ -31,7 +31,7 @@ class VAC(nn.Module):
         action_shape: Union[int, SequenceType, EasyDict],
         action_space: str = 'discrete',
         share_encoder: bool = True,
-        encoder_hidden_size_list: SequenceType = [128, 128, 64],
+        encoder_hidden_size_list: SequenceType = [128, 128, 64], # 最后一个维度是特征提取编码器的输出维度,其余的是特征提取器内部的维度变化,从这里来看，特征提取默认不使用残差
         actor_head_hidden_size: int = 64,
         actor_head_layer_num: int = 1,
         critic_head_hidden_size: int = 64,
@@ -140,7 +140,7 @@ class VAC(nn.Module):
         # Head Type 价值预测头，这里就是直接输出预测的价值
         self.critic_head = RegressionHead(
             encoder_hidden_size_list[-1], # 输入的特征维度
-            1,
+            1, # 输出的特征维度
             critic_head_layer_num,
             activation=activation,
             norm_type=norm_type,
@@ -148,7 +148,7 @@ class VAC(nn.Module):
         )
         self.action_space = action_space # 动作空间的类型，字符串类型，根据不同的动作空间的类型，创建不同的动作头
         assert self.action_space in ['discrete', 'continuous', 'hybrid'], self.action_space # 仅支持离散、连续、混合动作空间
-        # self.multi_head 是啥？
+        # todo self.multi_head 是啥？
         if self.action_space == 'continuous':
             self.multi_head = False # 连续动作空间不支持多头 todo
             # 构建连续动作预测

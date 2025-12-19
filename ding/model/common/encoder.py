@@ -25,7 +25,7 @@ class ConvEncoder(nn.Module):
     """
     Overview:
         The Convolution Encoder is used to encode 2-dim image observations.
-        用于图像特征的特征提取器
+        用于图像特征的特征提取器,最后输出展平后的全连接层
     Interfaces:
         ``__init__``, ``forward``.
     """
@@ -33,9 +33,9 @@ class ConvEncoder(nn.Module):
     def __init__(
             self,
             obs_shape: SequenceType,
-            hidden_size_list: SequenceType = [32, 64, 64, 128],
+            hidden_size_list: SequenceType = [32, 64, 64, 128], # 这个里面包含了残差卷积的shape和最后全连接的shape,所以判断比较复杂
             activation: Optional[nn.Module] = nn.ReLU(),
-            kernel_size: SequenceType = [8, 4, 3],
+            kernel_size: SequenceType = [8, 4, 3], # 卷积层的size，后续根据size创建对应的卷积和层数
             stride: SequenceType = [4, 2, 1],
             padding: Optional[SequenceType] = None,
             layer_norm: Optional[bool] = False, # 使用是否层归一化
@@ -68,8 +68,10 @@ class ConvEncoder(nn.Module):
 
         layers = []
         input_size = obs_shape[0]  # in_channel
+        # 构建卷积特征提取层
         for i in range(len(kernel_size)):
             if layer_norm:
+                # 以下部分是为了适配DreamerV3的卷积结构设计的
                 layers.append(
                     Conv2dSame(
                         in_channels=input_size,
@@ -86,17 +88,23 @@ class ConvEncoder(nn.Module):
                 layers.append(self.act)
             input_size = hidden_size_list[i]
         if len(self.hidden_size_list) >= len(kernel_size) + 2:
+            # 如果有残差块，则先判断残差块的输入条件是否满足要求
+            # 即：卷积最后一层的输出通道 = ResBlock 第一层的输入通道
+            # 别问为啥，本项目就是这么设计的
             assert self.hidden_size_list[len(kernel_size) - 1] == self.hidden_size_list[
                 len(kernel_size)], "Please indicate the same hidden size between conv and res block"
+        # 确认残差块的输入通道数和输出通道数只有一个值,保持输入通道和输出通道一致
         assert len(
             set(hidden_size_list[len(kernel_size):-1])
         ) <= 1, "Please indicate the same hidden size for res block parts"
+        # 构建残差模块,残差模块是在卷积层之后
         for i in range(len(kernel_size), len(self.hidden_size_list) - 1):
+            # todo 后续注释
             layers.append(ResBlock(self.hidden_size_list[i - 1], activation=self.act, norm_type=norm_type))
-        layers.append(Flatten())
+        layers.append(Flatten()) # 展平
         self.main = nn.Sequential(*layers)
 
-        flatten_size = self._get_flatten_size()
+        flatten_size = self._get_flatten_size() # 获取展平后的shape
         self.output_size = hidden_size_list[-1]  # outside to use
         self.mid = nn.Linear(flatten_size, hidden_size_list[-1])
 
@@ -121,6 +129,7 @@ class ConvEncoder(nn.Module):
             >>> )
             >>> flatten_size = conv._get_flatten_size()
         """
+        # 通过构建一个随机张量来获取展平后的特征维度
         test_data = torch.randn(1, *self.obs_shape)
         with torch.no_grad():
             output = self.main(test_data)

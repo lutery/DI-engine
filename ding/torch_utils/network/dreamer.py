@@ -13,7 +13,7 @@ class Conv2dSame(torch.nn.Conv2d):
     """
     Overview:
          Conv2dSame Network for dreamerv3.
-         这个卷积是保证不同输出的shape下
+         这个卷积是保证不同输入的shape下都能维持输入和输出的关系不变，即输出的shape = 输入的shape / stride
     Interfaces:
         ``__init__``, ``forward``
     """
@@ -38,6 +38,7 @@ class Conv2dSame(torch.nn.Conv2d):
             - x (:obj:`torch.Tensor`): Input tensor.
         """
         ih, iw = x.size()[-2:]
+        # 计算维持关系需要padding大小，然后进行pad操作
         pad_h = self.calc_same_pad(i=ih, k=self.kernel_size[0], s=self.stride[0], d=self.dilation[0])
         pad_w = self.calc_same_pad(i=iw, k=self.kernel_size[1], s=self.stride[1], d=self.dilation[1])
 
@@ -60,6 +61,7 @@ class DreamerLayerNorm(nn.Module):
     """
     Overview:
          DreamerLayerNorm Network for dreamerv3.
+         据说这里是为了适配DreamerV3结构的层归一化，除此之外和普通的LayerNorm没有区别
     Interfaces:
         ``__init__``, ``forward``
     """
@@ -83,7 +85,7 @@ class DreamerLayerNorm(nn.Module):
         Arguments:
             - x (:obj:`torch.Tensor`): Input tensor.
         """
-
+        # todo 后续确认输入的张量特征有啥不同
         x = x.permute(0, 2, 3, 1)
         x = self.norm(x)
         x = x.permute(0, 3, 1, 2)

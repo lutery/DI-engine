@@ -147,6 +147,7 @@ class Policy(ABC):
                     # model.cuda() is an in-place operation.
                     model.cuda()
                 if multi_gpu:
+                    # 多GPU训练
                     bp_update_sync = self._cfg.bp_update_sync # todo 这个参数是干嘛的？
                     self._bp_update_sync = bp_update_sync
                     self._init_multi_gpu_setting(model, bp_update_sync)
@@ -164,6 +165,7 @@ class Policy(ABC):
 
         # call the initialization method of different modes, such as ``_init_learn``, ``_init_collect``, ``_init_eval``
         for field in self._enable_field:
+            # 根据enable_field来初始化不同的模式
             getattr(self, '_init_' + field)()
 
     def _init_multi_gpu_setting(self, model: torch.nn.Module, bp_update_sync: bool) -> None:

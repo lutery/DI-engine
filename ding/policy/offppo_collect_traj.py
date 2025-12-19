@@ -78,11 +78,13 @@ class OffPPOCollectTrajPolicy(Policy):
         Overview:
             Learn mode init method. Called by ``self.__init__``.
             Init the optimizer, algorithm config and the main model.
+            如果是待学习的模型,则会调用此函数
         """
+        # todo 下面这个是啥? 为啥ppo没实现
         self._priority = self._cfg.priority
         self._priority_IS_weight = self._cfg.priority_IS_weight
         assert not self._priority and not self._priority_IS_weight, "Priority is not implemented in PPO"
-        # Orthogonal init
+        # Orthogonal init 初始化权重
         for m in self._model.modules():
             if isinstance(m, torch.nn.Conv2d):
                 torch.nn.init.orthogonal_(m.weight)
