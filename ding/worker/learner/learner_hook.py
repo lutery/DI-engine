@@ -323,10 +323,10 @@ class LogReduceHook(LearnerHook):
 
 
 hook_mapping = {
-    'load_ckpt': LoadCkptHook,
-    'save_ckpt': SaveCkptHook,
-    'log_show': LogShowHook,
-    'log_reduce': LogReduceHook,
+    'load_ckpt': LoadCkptHook, # 加载模型Hook
+    'save_ckpt': SaveCkptHook, # 保存模型Hook
+    'log_show': LogShowHook, # 日志记录Hook
+    'log_reduce': LogReduceHook, # 分布式日志聚合Hook
 }
 
 
@@ -355,8 +355,8 @@ def register_learner_hook(name: str, hook_type: type) -> None:
 
 
 simplified_hook_mapping = {
-    'log_show_after_iter': lambda freq: hook_mapping['log_show']
-    ('log_show', 20, position='after_iter', ext_args=EasyDict({'freq': freq})),
+    'log_show_after_iter': lambda freq: hook_mapping['log_show'] # 这行是从另一个hook_mapping中提取对应的日志i记录对象
+    ('log_show', 20, position='after_iter', ext_args=EasyDict({'freq': freq})), # 在每轮迭代后记录日志，这行是传入的参数
     'load_ckpt_before_run': lambda path: hook_mapping['load_ckpt']
     ('load_ckpt', 20, position='before_run', ext_args=EasyDict({'load_path': path})),
     'save_ckpt_after_iter': lambda freq: hook_mapping['save_ckpt']
@@ -392,24 +392,24 @@ def build_learner_hook_by_cfg(cfg: EasyDict) -> Dict[str, List[Hook]]:
     Note:
         Lower value means higher priority.
     """
-    hooks = {k: [] for k in LearnerHook.positions}
+    hooks = {k: [] for k in LearnerHook.positions} # 获取所有可以埋钩子的位置
     for key, value in cfg.items():
-        if key in simplified_hook_mapping and not isinstance(value, dict):
-            pos = key[find_char(key, '_', 2, reverse=True) + 1:]
-            hook = simplified_hook_mapping[key](value)
-            priority = hook.priority
+        if key in simplified_hook_mapping and not isinstance(value, dict): # 这里也是设计问题，不必深究
+            pos = key[find_char(key, '_', 2, reverse=True) + 1:] # 看来这里是根据配置键名的特点，从中提取hook位置 设计而已
+            hook = simplified_hook_mapping[key](value) # 根据key拿到对应的hook对象（todo 但此时还没看到从哪里注入的）
+            priority = hook.priority # 获取其优先级
         else:
             priority = value.get('priority', 100)
             pos = value.position
             ext_args = value.get('ext_args', {})
-            hook = hook_mapping[value.type](value.name, priority, position=pos, ext_args=ext_args)
+            hook = hook_mapping[value.type](value.name, priority, position=pos, ext_args=ext_args) # 同上，只是这里直接从hook_mapping调用构建Hook对象，todo也同上
         idx = 0
-        for i in reversed(range(len(hooks[pos]))):
+        for i in reversed(range(len(hooks[pos]))): # 遍历所有已经存在hook点，然后根据优先级插入新的hook
             if priority >= hooks[pos][i].priority:
                 idx = i + 1
                 break
-        hooks[pos].insert(idx, hook)
-    return hooks
+        hooks[pos].insert(idx, hook) 
+    return hooks # 返回所有hook点的hook对象列表，在合适的时候调用其中的可调用对象，传入参数
 
 
 def add_learner_hook(hooks: Dict[str, List[Hook]], hook: LearnerHook) -> None:
@@ -435,6 +435,7 @@ def merge_hooks(hooks1: Dict[str, List[Hook]], hooks2: Dict[str, List[Hook]]) ->
     """
     Overview:
         Merge two hooks dict, which have the same keys, and each value is sorted by hook priority with stable method.
+        合并两个book对象，主要是根据优先级合并
     Arguments:
         - hooks1 (:obj:`Dict[str, List[Hook]`): hooks1 to be merged.
         - hooks2 (:obj:`Dict[str, List[Hook]`): hooks2 to be merged.

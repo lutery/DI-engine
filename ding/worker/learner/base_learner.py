@@ -18,6 +18,7 @@ class BaseLearner(object):
     r"""
     Overview:
         Base class for policy learning.
+        这个类中并未看到实际和算法训练相关的代码，而是记录了配置参数、日志记录器、定时器、钩子函数等通用组件
     Interface:
         train, call_hook, register_hook, save_checkpoint, start, setup_dataloader, close
     Property:
@@ -50,12 +51,12 @@ class BaseLearner(object):
 
     def __init__(
             self,
-            cfg: EasyDict,
-            policy: namedtuple = None,
+            cfg: EasyDict, # 配置类
+            policy: namedtuple = None, # 策略类，主要是策略类的训练模式相关的接口，通过这些接口可以和策略类交互
             tb_logger: Optional['SummaryWriter'] = None,  # noqa
-            dist_info: Tuple[int, int] = None,
-            exp_name: Optional[str] = 'default_experiment',
-            instance_name: Optional[str] = 'learner',
+            dist_info: Tuple[int, int] = None, # 这个应该是分布式训练的时候，传入其当前的rank和world_size，rank表示当前进程的编号，world_size表示总的进程数
+            exp_name: Optional[str] = 'default_experiment', # todo
+            instance_name: Optional[str] = 'learner', # todo 无参数传入
     ) -> None:
         """
         Overview:
@@ -77,6 +78,7 @@ class BaseLearner(object):
 
                 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"  # for debug async CUDA
         """
+        # todo 一些参数配置，后续看起发挥作用的地方
         self._cfg = cfg
         self._exp_name = exp_name
         self._instance_name = instance_name
@@ -92,13 +94,15 @@ class BaseLearner(object):
         # These 2 attributes are only used in parallel mode.
         self._end_flag = False
         self._learner_done = False
+        # 设置分布式训练的进程信息
         if dist_info is None:
-            self._rank = get_rank()
-            self._world_size = get_world_size()
+            self._rank = get_rank() # 当前进程的排名/编号（从 0 开始）
+            self._world_size = get_world_size() # 总的进程数量
         else:
             # Learner rank. Used to discriminate which GPU it uses.
             self._rank, self._world_size = dist_info
         if self._world_size > 1:
+            # todo 后续看这里的作用
             self._cfg.hook.log_reduce_after_iter = True
 
         # Logger (Monitor will be initialized in policy setter)
@@ -106,6 +110,8 @@ class BaseLearner(object):
         # Otherwise, only rank == 0 learner needs monitor and tb_logger,
         # others only need text_logger to display terminal output.
         if self._rank == 0 or not self.only_monitor_rank0:
+            # 对于分布式训练中，构建日志记录器
+            # 分布式训练中除了主进程或者开启了多任务管道的每个进程都需要tensorboard日志记录器
             if tb_logger is not None:
                 self._logger, _ = build_logger(
                     './{}/log/{}'.format(self._exp_name, self._instance_name), self._instance_name, need_tb=False
@@ -116,26 +122,32 @@ class BaseLearner(object):
                     './{}/log/{}'.format(self._exp_name, self._instance_name), self._instance_name
                 )
         else:
+            # 否则子进程只有文本日志记录器
             self._logger, _ = build_logger(
                 './{}/log/{}'.format(self._exp_name, self._instance_name), self._instance_name, need_tb=False
             )
             self._tb_logger = None
 
+        # 创建一些日志记录的一些数据，估计用于计算平均时之类的
         self._log_buffer = {
-            'scalar': build_log_buffer(),
+            'scalar': build_log_buffer(), # 发现做作用点，记录每次训练的耗时
             'scalars': build_log_buffer(),
             'histogram': build_log_buffer(),
         }
 
-        # Setup policy
+        # Setup policy 存储模型策略对接的接口
         if policy is not None:
             self.policy = policy
 
         # Learner hooks. Used to do specific things at specific time point. Will be set in ``_setup_hook``
+        # 这里是一个仿hook对象，存储的一系列可调用对象，在合适的时候调用传入参数
+        # 不是想象中的模型hook或者java的aop
         self._hooks = {'before_run': [], 'before_iter': [], 'after_iter': [], 'after_run': []}
         # Last iteration. Used to record current iter.
+        # todo 这个是啥？
         self._last_iter = CountVar(init_val=0)
         # Collector envstep. Used to record current envstep.
+        # todo
         self._collector_envstep = 0
 
         # Setup time wrapper and hook.
@@ -147,6 +159,7 @@ class BaseLearner(object):
         Overview:
             Setup hook for base_learner. Hook is the way to implement some functions at specific time point
             in base_learner. You can refer to ``learner_hook.py``.
+            创建钩子函数，用于在特定时间点执行一些功能，todo 但是目前看到的代码中hook为空，应该不涉及训练相关
         """
         if hasattr(self, '_hooks'):
             self._hooks = merge_hooks(self._hooks, build_learner_hook_by_cfg(self._cfg.hook))
@@ -157,6 +170,7 @@ class BaseLearner(object):
         """
         Overview:
             Use ``_time_wrapper`` to get ``train_time``.
+            创建定时器，将其应用于 ``train`` 方法，以记录训练所用时间。
         Note:
             ``data_time`` is wrapped in ``setup_dataloader``.
         """
@@ -167,6 +181,7 @@ class BaseLearner(object):
         """
         Overview:
             Wrap a function and record the time it used in ``_log_buffer``.
+            包装一个可调用对象，将之前创建的定时起作用于该对象，并将测量的时间记录到日志缓冲区中。
         Arguments:
             - fn (:obj:`Callable`): Function to be time_wrapped.
             - var_type (:obj:`str`): Variable type, e.g. ['scalar', 'scalars', 'histogram'].

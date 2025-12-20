@@ -112,6 +112,7 @@ class Policy(ABC):
             policy, the ``collect`` field is used to collect data for training, and the ``eval`` field is used to \
             evaluate the policy. The ``enable_field`` is used to specify which field to initialize, if it is None, \
             then all fields will be initialized.
+            创建模型，然后根据enable_field来初始化不同的模式
         Arguments:
             - cfg (:obj:`EasyDict`): The final merged config used to initialize policy. For the default config, \
                 see the ``config`` attribute and its comments of policy class. 配置参数
@@ -166,6 +167,7 @@ class Policy(ABC):
         # call the initialization method of different modes, such as ``_init_learn``, ``_init_collect``, ``_init_eval``
         for field in self._enable_field:
             # 根据enable_field来初始化不同的模式
+            # todo 还欠一个_init_command为看到在哪里有实现
             getattr(self, '_init_' + field)()
 
     def _init_multi_gpu_setting(self, model: torch.nn.Module, bp_update_sync: bool) -> None:
@@ -309,6 +311,7 @@ class Policy(ABC):
             Return the interfaces of learn mode of policy, which is used to train the model. Here we use namedtuple \
             to define immutable interfaces and restrict the usage of policy in different modes. Moreover, derived \
             subclass can override the interfaces to customize its own learn mode.
+            看起来是针对训练模式的接口，外部可以通过这些接口获取或者设置属性，保存和加载状态字典等，控制模型策略的行为
         Returns:
             - interfaces (:obj:`Policy.learn_function`): The interfaces of learn mode of policy, it is a namedtuple \
                 whose values of distinct fields are different internal methods.

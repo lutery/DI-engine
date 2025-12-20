@@ -22,6 +22,7 @@ def build_logger(
     """
     Overview:
         Build text logger and tensorboard logger.
+        创建一个文本日志记录器和一个 TensorBoard 日志记录器。方便持久化日志
     Arguments:
         - path (:obj:`str`): Logger(``Textlogger`` & ``SummaryWriter``)'s saved dir
         - name (:obj:`str`): The logger file name

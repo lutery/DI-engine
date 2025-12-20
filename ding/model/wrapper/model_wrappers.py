@@ -16,6 +16,7 @@ class IModelWrapper(ABC):
         The basic interface class of model wrappers. Model wrapper is a wrapper class of torch.nn.Module model, which \
         is used to add some extra operations for the wrapped model, such as hidden state maintain for RNN-base model, \
         argmax action selection for discrete action space, etc.
+        这个类只是给模型包装器定义了一个接口规范，用于后续各种具体的包装器实现。
     Interfaces:
         ``__init__``, ``__getattr__``, ``info``, ``reset``, ``forward``.
     """
@@ -31,6 +32,7 @@ class IModelWrapper(ABC):
         """
         Overview:
             Get original attrbutes of torch.nn.Module model, such as variables and methods defined in model.
+            方便获取被包装模型的属性。
         Arguments:
             - key (:obj:`str`): The string key to query.
         Returns:
@@ -43,6 +45,7 @@ class IModelWrapper(ABC):
         Overview:
             Get some string information of the indicated ``attr_name``, which is used for debug wrappers.
             This method will recursively search for the indicated ``attr_name``.
+            方便获取被包装模型的属性信息字符串。
         Arguments:
             - attr_name (:obj:`str`): The string key to query information.
         Returns:
@@ -68,6 +71,7 @@ class IModelWrapper(ABC):
             Basic interface, reset some stateful varaibles in the model wrapper, such as hidden state of RNN.
             Here we do nothing and just implement this interface method.
             Other derived model wrappers can override this method to add some extra operations.
+            方便重置被包装模型的状态。对于普通的模型，这里什么都不做。
         Arguments:
             - data_id (:obj:`List[int]`): The data id list to reset. If None, reset all data. In practice, \
                 model wrappers often needs to maintain some stateful variables for each data trajectory, \
@@ -82,6 +86,7 @@ class IModelWrapper(ABC):
         Overview:
             Basic interface, call the wrapped model's forward method. Other derived model wrappers can override this \
             method to add some extra operations.
+            还是和原来一样，只是普通的forward函数调用。
         """
         return self._model.forward(*args, **kwargs)
 
@@ -415,6 +420,8 @@ class ArgmaxSampleWrapper(IModelWrapper):
     """
     Overview:
         Used to help the model to sample argmax action.
+        让模型实现最大值采样动作选择。
+        修改了forward，要求模型的输出是一个dict，包含'logit'键，然后根据logit计算动作概率。
     Interfaces:
         ``forward``.
     """
@@ -430,15 +437,15 @@ class ArgmaxSampleWrapper(IModelWrapper):
         assert isinstance(logit, torch.Tensor) or isinstance(logit, list)
         if isinstance(logit, torch.Tensor):
             logit = [logit]
-        if 'action_mask' in output:
+        if 'action_mask' in output: # 如果模型的输出有动作掩码，则进行掩码处理，即将不可选动作的logit值设为一个很小的数
             mask = output['action_mask']
             if isinstance(mask, torch.Tensor):
                 mask = [mask]
-            logit = [l.sub_(1e8 * (1 - m)) for l, m in zip(logit, mask)]
-        action = [l.argmax(dim=-1) for l in logit]
-        if len(action) == 1:
+            logit = [l.sub_(1e8 * (1 - m)) for l, m in zip(logit, mask)] # 这里就是对logit进行掩码处理，让其减去一个很大的数
+        action = [l.argmax(dim=-1) for l in logit] # 直接选择logits最大的动作
+        if len(action) == 1: # 看来这里是为了兼容多头动作空间的情况，设计无其他的意义
             action, logit = action[0], logit[0]
-        output['action'] = action
+        output['action'] = action # 将预测的动作放入输出字典中
         return output
 
 
@@ -994,6 +1001,9 @@ def model_wrap(model: Union[nn.Module, IModelWrapper], wrapper_name: str = None,
     """
     Overview:
         Wrap the model with the specified wrapper and return the wrappered model.
+        看起来是要将模型进行包装，todo 是干嘛的
+        后续看其他地方的调用
+        如果模型开启了collect，则会进行包装 argmax_sample
     Arguments:
         - model (:obj:`Any`): The model to be wrapped.
         - wrapper_name (:obj:`str`): The name of the wrapper to be used.
@@ -1004,7 +1014,9 @@ def model_wrap(model: Union[nn.Module, IModelWrapper], wrapper_name: str = None,
     if wrapper_name in wrapper_name_map:
         # TODO test whether to remove this if branch
         if not isinstance(model, IModelWrapper):
+            # 对于普通的nn.Module模型，先用base包装一下 
             model = wrapper_name_map['base'](model)
+        # 再用指定的wrapper进行包装
         model = wrapper_name_map[wrapper_name](model, **kwargs)
     else:
         raise TypeError("not support model_wrapper type: {}".format(wrapper_name))

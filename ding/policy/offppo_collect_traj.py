@@ -21,6 +21,7 @@ class OffPPOCollectTrajPolicy(Policy):
     r"""
     Overview:
         Policy class of off policy PPO algorithm to collect expert traj for R2D3.
+        这里应该是定义具体的ppo策略类，在内部会有模型的创建
     """
     config = dict(
         # (str) RL policy register name (refer to function "POLICY_REGISTRY").
@@ -92,16 +93,16 @@ class OffPPOCollectTrajPolicy(Policy):
                 torch.nn.init.orthogonal_(m.weight)
         # Optimizer
         self._optimizer = Adam(self._model.parameters(), lr=self._cfg.learn.learning_rate)
-        self._learn_model = model_wrap(self._model, wrapper_name='base')
+        self._learn_model = model_wrap(self._model, wrapper_name='base') # 将model包装成base wrapper，目前没扩展啥，后续再看
 
-        # Algorithm config
+        # Algorithm config 算法相关的配置，可以理解为超参数
         self._value_weight = self._cfg.learn.value_weight
         self._entropy_weight = self._cfg.learn.entropy_weight
         self._clip_ratio = self._cfg.learn.clip_ratio
         self._adv_norm = self._cfg.learn.adv_norm
         self._nstep = self._cfg.nstep
         self._nstep_return = self._cfg.nstep_return
-        # Main model
+        # Main model 因为包装的是base wrapper，所以这里的learn_model其实和self._model是一样的，reset里面没做啥
         self._learn_model.reset()
 
     def _forward_learn(self, data: dict) -> Dict[str, Any]:
@@ -202,12 +203,14 @@ class OffPPOCollectTrajPolicy(Policy):
         Overview:
             Collect mode init method. Called by ``self.__init__``.
             Init traj and unroll length, collect model.
+            对于开启了collect模式的模型,则会调用此函数，看名字应该主要是应用在样本采集的情况下
         """
-        self._unroll_len = self._cfg.collect.unroll_len
+        self._unroll_len = self._cfg.collect.unroll_len # todo 这个是干嘛的
         # self._collect_model = model_wrap(self._model, wrapper_name='multinomial_sample')
         # NOTE this policy is to collect expert traj, so we have to use argmax_sample wrapper
-        self._collect_model = model_wrap(self._model, wrapper_name='argmax_sample')
-        self._collect_model.reset()
+        self._collect_model = model_wrap(self._model, wrapper_name='argmax_sample') # 采样动作时使用argmax策略的包装器，有点像gym中的包装器
+        self._collect_model.reset() # 重置collect model的状态，但是argmax_sample本身并没有做啥
+        # 各种算法相关的配置，也算超参数
         self._gamma = self._cfg.collect.discount_factor
         self._gae_lambda = self._cfg.collect.gae_lambda
         self._nstep = self._cfg.nstep
@@ -280,6 +283,7 @@ class OffPPOCollectTrajPolicy(Policy):
         Overview:
             Evaluate mode init method. Called by ``self.__init__``.
             Init eval model with argmax strategy.
+            对于验证的模型来说，这里仅包装了一个argmax采样的模型，无法其他的动作
         """
         self._eval_model = model_wrap(self._model, wrapper_name='argmax_sample')
         self._eval_model.reset()

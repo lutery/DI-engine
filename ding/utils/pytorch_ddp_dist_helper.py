@@ -16,6 +16,10 @@ def get_rank() -> int:
     """
     Overview:
         Get the rank of current process in total world_size
+        获取当前的进程编号
+        基于 torch.distributed
+        如果未初始化分布式环境，安全返回默认值（rank=0, world_size=1）
+        适用于 PyTorch 标准的分布式训练
     """
     # return int(os.environ.get('SLURM_PROCID', 0))
     return error_wrapper(dist.get_rank, 0)()
@@ -25,6 +29,10 @@ def get_world_size() -> int:
     """
     Overview:
         Get the world_size(total process number in data parallel training)
+        返回值：总的进程数量
+        用途：表示分布式训练的规模
+        单机训练：返回 1
+        多机/多GPU训练：返回总的 GPU/进程数量
     """
     # return int(os.environ.get('SLURM_NTASKS', 1))
     return error_wrapper(dist.get_world_size, 1)()

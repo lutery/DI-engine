@@ -12,13 +12,14 @@ def build_time_helper(cfg: EasyDict = None, wrapper_type: str = None) -> Callabl
     """
     Overview:
         Build the timehelper
+        主要构建一个可以准确统计模型运行耗时的包装器类
 
     Arguments:
         - cfg (:obj:`dict`):
             The config file, which is a multilevel dict, have large domain like
             evaluate, common, model, train etc, and each large domain
             has it's smaller domain.
-        - wrapper_type (:obj:`str`): The type of wrapper returned, support ``['time', 'cuda']``
+        - wrapper_type (:obj:`str`): The type of wrapper returned, support ``['time', 'cuda']`` 包装器类型，如果这里没传入那么就从配置文件中读取
 
     Returns:
         - time_wrapper (:obj:`TimeWrapper`):
@@ -26,6 +27,7 @@ def build_time_helper(cfg: EasyDict = None, wrapper_type: str = None) -> Callabl
             and ``ding.utils.timehelper.get_cuda_time_wrapper``.
     """
     # Note: wrapper_type has higher priority
+    # 这里需要确保至少要有一个途径传入了包装器的类型
     if wrapper_type is not None:
         time_wrapper_type = wrapper_type
     elif cfg is not None:
@@ -49,6 +51,8 @@ class EasyTimer:
     """
     Overview:
         A decent timer wrapper that can be used easily.
+        简单易用的计时器包装类
+        主要用于方便地测量代码块的执行时间，支持CPU和GPU（CUDA）计时。
 
     Interfaces:
         ``__init__``, ``__enter__``, ``__exit__``
@@ -95,6 +99,7 @@ class TimeWrapperTime(TimeWrapper):
     """
     Overview:
         A class method that inherit from ``TimeWrapper`` class
+        普通的耗时定时器包装器类，主要用于运行在cpu上的模型
 
     Interfaces:
         ``start_time``, ``end_time``

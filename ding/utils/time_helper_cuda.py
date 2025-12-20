@@ -21,6 +21,11 @@ def get_cuda_time_wrapper() -> Callable[[], 'TimeWrapper']:
         """
         Overview:
             A class method that inherit from ``TimeWrapper`` class
+            专门用于模型在gpu中耗时的计时器类
+            GPU 操作是异步的：model(data) 会立即返回，但 GPU 还在后台计算
+            CPU 计时只测量了提交任务的时间，而不是实际执行时间
+            结果会比实际耗时短很多
+            具体查看md文档
 
             Notes:
                 Must use torch.cuda.synchronize(), reference: \

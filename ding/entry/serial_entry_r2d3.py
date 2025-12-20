@@ -55,7 +55,7 @@ def serial_pipeline_r2d3(
     else:
         cfg, create_cfg = deepcopy(input_cfg)
         expert_cfg, expert_create_cfg = expert_cfg
-    create_cfg.policy.type = create_cfg.policy.type + '_command' # todo 这里将policy type改成带command的干啥？
+    create_cfg.policy.type = create_cfg.policy.type + '_command' # 这里将policy type改成带command的干啥？意思就是创建的策略模型要继承自带command的基类，所以后续的在create_policy中创建的策略实际的名字叫：'offppo_collect_traj_command'
     expert_create_cfg.policy.type = expert_create_cfg.policy.type + '_command' # todo 同上
     env_fn = None if env_setting is None else env_setting[0]  # 在r2d3中，传入的是None
     # 以下大概是将传入的进行整合和整理 todo
@@ -85,16 +85,18 @@ def serial_pipeline_r2d3(
     evaluator_env = create_env_manager(cfg.env.manager, [partial(env_fn, cfg=c) for c in evaluator_env_cfg])
     # 为保证不同模型的环境一致性，手动指定不同环境的种子
     expert_collector_env.seed(cfg.seed)
-    collector_env.seed(cfg.seed)
+    collector_env.seed(cfg.seed)*
     # todo 这里的dynamic_seed为什么是False呢？
     evaluator_env.seed(cfg.seed, dynamic_seed=False)
     # 创建专家策略和待训练策略
     expert_policy = create_policy(expert_cfg.policy, model=expert_model, enable_field=['collect', 'command'])
     set_pkg_seed(cfg.seed, use_cuda=cfg.policy.cuda)
     policy = create_policy(cfg.policy, model=model, enable_field=['learn', 'collect', 'eval', 'command'])
+    # 专家策略加载预训练模型参数，运行在cpu上
     expert_policy.collect_mode.load_state_dict(torch.load(expert_cfg.policy.collect.model_path, map_location='cpu'))
     # Create worker components: learner, collector, evaluator, replay buffer, commander.
     tb_logger = SummaryWriter(os.path.join('./{}/log/'.format(cfg.exp_name), 'serial'))
+    # 创建训练辅助器，但是和实际的训练无直接关系
     learner = BaseLearner(cfg.policy.learn.learner, policy.learn_mode, tb_logger, exp_name=cfg.exp_name)
     collector = create_serial_collector(
         cfg.policy.collect.collector,
