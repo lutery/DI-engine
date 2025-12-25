@@ -319,9 +319,10 @@ class BaseEnvManager(object):
             - reset_param (:obj:`Optional[Dict]`): A dict of reset parameters for each environment, key is the env_id, \
                 value is the corresponding reset parameter, defaults to None.
         """
+        # 如果环境管理器没有关闭，则不能重复启动
         assert self._closed, "Please first close the env manager"
         try:
-            global space_log_flag
+            global space_log_flag # 这个全局变量是用来控制环境空间信息只打印一次的
             if space_log_flag:
                 logging.info("Env Space Information:")
                 logging.info("\tObservation Space: {}".format(self._observation_space))
@@ -331,16 +332,17 @@ class BaseEnvManager(object):
         except:
             pass
         if reset_param is not None:
+            # 设计，设计上要保证每个环境都对应一个reset参数
             assert len(reset_param) == len(self._env_fn)
         self._create_state()
         self.reset(reset_param)
 
     def _create_state(self) -> None:
-        self._env_episode_count = {i: 0 for i in range(self.env_num)}
-        self._ready_obs = {i: None for i in range(self.env_num)}
-        self._envs = [e() for e in self._env_fn]
-        assert len(self._envs) == self._env_num
-        self._reset_param = {i: {} for i in range(self.env_num)}
+        self._env_episode_count = {i: 0 for i in range(self.env_num)} # 记录每个子环境已经执行的回合数
+        self._ready_obs = {i: None for i in range(self.env_num)} # todo 是不是记录每个环境当前的obs
+        self._envs = [e() for e in self._env_fn] # 实例化每个子环境
+        assert len(self._envs) == self._env_num 
+        self._reset_param = {i: {} for i in range(self.env_num)} # todo 记录每个子环境的reset参数
         self._env_states = {i: EnvState.INIT for i in range(self.env_num)}
         if self._env_replay_path is not None:
             for e, s in zip(self._envs, self._env_replay_path):

@@ -85,7 +85,7 @@ def serial_pipeline_r2d3(
     evaluator_env = create_env_manager(cfg.env.manager, [partial(env_fn, cfg=c) for c in evaluator_env_cfg])
     # 为保证不同模型的环境一致性，手动指定不同环境的种子
     expert_collector_env.seed(cfg.seed)
-    collector_env.seed(cfg.seed)*
+    collector_env.seed(cfg.seed)
     # todo 这里的dynamic_seed为什么是False呢？
     evaluator_env.seed(cfg.seed, dynamic_seed=False)
     # 创建专家策略和待训练策略
@@ -93,11 +93,14 @@ def serial_pipeline_r2d3(
     set_pkg_seed(cfg.seed, use_cuda=cfg.policy.cuda)
     policy = create_policy(cfg.policy, model=model, enable_field=['learn', 'collect', 'eval', 'command'])
     # 专家策略加载预训练模型参数，运行在cpu上
+    # 这里的collect_mode是一个对外的接口集合，
     expert_policy.collect_mode.load_state_dict(torch.load(expert_cfg.policy.collect.model_path, map_location='cpu'))
     # Create worker components: learner, collector, evaluator, replay buffer, commander.
     tb_logger = SummaryWriter(os.path.join('./{}/log/'.format(cfg.exp_name), 'serial'))
     # 创建训练辅助器，但是和实际的训练无直接关系
     learner = BaseLearner(cfg.policy.learn.learner, policy.learn_mode, tb_logger, exp_name=cfg.exp_name)
+    # 后续调试看看这里的collector具体是啥
+    # 根据compile_config中的信息，如果没有配置，则注入默认的采集器，所以其值为：sample
     collector = create_serial_collector(
         cfg.policy.collect.collector,
         env=collector_env,

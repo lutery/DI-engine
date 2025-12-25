@@ -15,6 +15,7 @@ from .base_serial_collector import ISerialCollector, CachePool, TrajBuffer, INF,
 @SERIAL_COLLECTOR_REGISTRY.register('sample')
 class SampleSerialCollector(ISerialCollector):
     """
+    看名字应该是一个环境数据采集器
     Overview:
         Sample collector(n_sample), a sample is one training sample for updating model,
         it is usually like <s, a, s', r, d>(one transition)
@@ -42,21 +43,22 @@ class SampleSerialCollector(ISerialCollector):
         Arguments:
             - cfg (:obj:`EasyDict`): Config dict
             - env (:obj:`BaseEnvManager`): the subclass of vectorized env_manager(BaseEnvManager)
-            - policy (:obj:`namedtuple`): the api namedtuple of collect_mode policy
+            - policy (:obj:`namedtuple`): the api namedtuple of collect_mode policy 这里是系列化的策略接口，通过接口可以和policy进行交互 todo 具体做了哪些交互
             - tb_logger (:obj:`SummaryWriter`): tensorboard handle
         """
         self._exp_name = exp_name
         self._instance_name = instance_name
-        self._collect_print_freq = cfg.collect_print_freq
-        self._deepcopy_obs = cfg.deepcopy_obs  # whether to deepcopy each data
-        self._transform_obs = cfg.transform_obs
+        self._collect_print_freq = cfg.collect_print_freq # 日志打印频率
+        self._deepcopy_obs = cfg.deepcopy_obs  # whether to deepcopy each data 是否每次的obs都采用深拷贝
+        self._transform_obs = cfg.transform_obs # todo
         self._cfg = cfg
         self._timer = EasyTimer()
         self._end_flag = False
-        self._rank = get_rank()
-        self._world_size = get_world_size()
+        self._rank = get_rank() # 分布式训练有用，当前的进程id
+        self._world_size = get_world_size() # 分布式训练有用，总工的训练进程数
 
         if self._rank == 0:
+            # 只有住进城程会创建日志系统
             if tb_logger is not None:
                 self._logger, _ = build_logger(
                     path='./{}/log/{}'.format(self._exp_name, self._instance_name),
@@ -88,10 +90,12 @@ class SampleSerialCollector(ISerialCollector):
                 env_manager(BaseEnvManager)
         """
         if _env is not None:
+            # 如果传入的环境不为空，则替换当前的环境，并启动
             self._env = _env
             self._env.launch()
             self._env_num = self._env.env_num
         else:
+            # 否则表示重置当前的环境
             self._env.reset()
 
     def reset_policy(self, _policy: Optional[namedtuple] = None) -> None:
