@@ -23,6 +23,7 @@ def to_positive_index(idx: Union[int, None], size: int) -> int:
 class AdvancedReplayBuffer(IBuffer):
     r"""
     Overview:
+    todo 标注本缓冲区的特点
         Prioritized replay buffer derived from ``NaiveReplayBuffer``.
         This replay buffer adds:
 
@@ -102,39 +103,41 @@ class AdvancedReplayBuffer(IBuffer):
             - exp_name (:obj:`Optional[str]`): Name of this experiment.
             - instance_name (:obj:`Optional[str]`): Name of this instance.
         """
-        self._exp_name = exp_name
-        self._instance_name = instance_name
-        self._end_flag = False
-        self._cfg = cfg
-        self._rank = get_rank()
-        self._replay_buffer_size = self._cfg.replay_buffer_size
-        self._deepcopy = self._cfg.deepcopy
-        # ``_data`` is a circular queue to store data (full data or meta data)
-        self._data = [None for _ in range(self._replay_buffer_size)]
+        self._exp_name = exp_name # 缓冲区的名字
+        self._instance_name = instance_name # 实例名称 todo 区别？
+        self._end_flag = False # 标识缓冲区是否已经关闭
+        self._cfg = cfg # 缓冲区的配置
+        self._rank = get_rank() # 进程的rank
+        self._replay_buffer_size = self._cfg.replay_buffer_size # 缓冲区的大小
+        self._deepcopy = self._cfg.deepcopy # 是否深拷贝数据
+        # ``_data`` is a circular queue to store data (full data or meta data) 
+        self._data = [None for _ in range(self._replay_buffer_size)] # 初始化数据存储区？ todo 直接用list存储？
         # Current valid data count, indicating how many elements in ``self._data`` is valid.
-        self._valid_count = 0
+        # todo _valid_count和_push_count的区别
+        self._valid_count = 0 # 当前有效数据的数量
         # How many pieces of data have been pushed into this buffer, should be no less than ``_valid_count``.
-        self._push_count = 0
+        self._push_count = 0 # 已经插入缓冲区的数据总数
         # Point to the tail position where next data can be inserted, i.e. latest inserted data's next position.
-        self._tail = 0
+        self._tail = 0 # 插入数据的位置指针
         # Is used to generate a unique id for each data: If a new data is inserted, its unique id will be this.
-        self._next_unique_id = 0
+        self._next_unique_id = 0 # 下一个数据的唯一id todo 作用
         # Lock to guarantee thread safe
-        self._lock = LockContext(lock_type=LockContextType.THREAD_LOCK)
+        self._lock = LockContext(lock_type=LockContextType.THREAD_LOCK) # 线程锁，保证线程安全 todo 作用
         # Point to the head of the circular queue. The true data is the stalest(oldest) data in this queue.
         # Because buffer would remove data due to staleness or use count, and at the beginning when queue is not
         # filled with data head would always be 0, so ``head`` may be not equal to ``tail``;
         # Otherwise, they two should be the same. Head is used to optimize staleness check in ``_sample_check``.
         self._head = 0
         # use_count is {position_idx: use_count}
-        self._use_count = {idx: 0 for idx in range(self._cfg.replay_buffer_size)}
+        self._use_count = {idx: 0 for idx in range(self._cfg.replay_buffer_size)} # 每个位置的数据使用次数
         # Max priority till now. Is used to initizalize a data's priority if "priority" is not passed in with the data.
-        self._max_priority = 1.0
+        self._max_priority = 1.0 # todo 针对优先级队列的最大优先级
         # A small positive number to avoid edge-case, e.g. "priority" == 0.
         self._eps = 1e-5
         # Data check function list, used in ``_append`` and ``_extend``. This buffer requires data to be dict.
-        self.check_list = [lambda x: isinstance(x, dict)]
+        self.check_list = [lambda x: isinstance(x, dict)] # 校验是否是dict
 
+        # todo 后续再看这些配置的作用
         self._max_use = self._cfg.max_use
         self._max_staleness = self._cfg.max_staleness
         self.alpha = self._cfg.alpha
@@ -147,12 +150,13 @@ class AdvancedReplayBuffer(IBuffer):
 
         # Prioritized sample.
         # Capacity needs to be the power of 2.
-        capacity = int(np.power(2, np.ceil(np.log2(self.replay_buffer_size))))
+        # 下面几个配置和优先级队列有关系，这里的容量更像是树的层级 todo
+        capacity = int(np.power(2, np.ceil(np.log2(self.replay_buffer_size)))) #
         # Sum segtree and min segtree are used to sample data according to priority.
-        self._sum_tree = SumSegmentTree(capacity)
-        self._min_tree = MinSegmentTree(capacity)
+        self._sum_tree = SumSegmentTree(capacity) # todo
+        self._min_tree = MinSegmentTree(capacity) # todo
 
-        # Thruput controller
+        # Thruput controller todo 下面这个是干嘛的？
         push_sample_rate_limit = self._cfg.thruput_controller.push_sample_rate_limit
         self._always_can_push = True if push_sample_rate_limit['max'] == float('inf') else False
         self._always_can_sample = True if push_sample_rate_limit['min'] == 0 else False
@@ -163,6 +167,7 @@ class AdvancedReplayBuffer(IBuffer):
         assert self._sample_min_limit_ratio >= 1
 
         # Monitor & Logger
+        # 日志监视器，只有主进程才打印日志
         monitor_cfg = self._cfg.monitor
         if self._rank == 0:
             if tb_logger is not None:
@@ -182,9 +187,9 @@ class AdvancedReplayBuffer(IBuffer):
             self._tb_logger = None
         self._start_time = time.time()
         # Sampled data attributes.
-        self._cur_learner_iter = -1
-        self._cur_collector_envstep = -1
-        self._sampled_data_attr_print_count = 0
+        self._cur_learner_iter = -1 # 当前学习器的迭代次数
+        self._cur_collector_envstep = -1 # 当前采集器的环境步数
+        self._sampled_data_attr_print_count = 0 # 采样数据属性打印计数
         self._sampled_data_attr_monitor = SampledDataAttrMonitor(
             TickTime(), expire=monitor_cfg.sampled_data_attr.average_range
         )

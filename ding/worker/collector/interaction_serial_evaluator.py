@@ -35,9 +35,9 @@ class InteractionSerialEvaluator(ISerialEvaluator):
 
     def __init__(
             self,
-            cfg: dict,
-            env: BaseEnvManager = None,
-            policy: namedtuple = None,
+            cfg: dict, # 验证器的配置
+            env: BaseEnvManager = None, # 环境
+            policy: namedtuple = None,  # 策略模型，切换为了验证模式
             tb_logger: 'SummaryWriter' = None,  # noqa
             exp_name: Optional[str] = 'default_experiment',
             instance_name: Optional[str] = 'evaluator',
@@ -55,6 +55,7 @@ class InteractionSerialEvaluator(ISerialEvaluator):
 
         # Logger (Monitor will be initialized in policy setter)
         # Only rank == 0 learner needs monitor and tb_logger, others only need text_logger to display terminal output.
+        # 只有主进程才会创建日志记录器，打印日志
         if get_rank() == 0:
             if tb_logger is not None:
                 self._logger, _ = build_logger(
@@ -67,6 +68,7 @@ class InteractionSerialEvaluator(ISerialEvaluator):
                 )
         else:
             self._logger, self._tb_logger = None, None  # for close elegantly
+        # 重置策略和环境
         self.reset(policy, env)
 
         self._timer = EasyTimer()
@@ -84,6 +86,7 @@ class InteractionSerialEvaluator(ISerialEvaluator):
             If _env is None, reset the old environment.
             If _env is not None, replace the old environment in the evaluator with the \
                 new passed in environment and launch.
+            流程类似采集器中的reset_env，重置环境或者替换成新的环境
         Arguments:
             - env (:obj:`Optional[BaseEnvManager]`): instance of the subclass of vectorized \
                 env_manager(BaseEnvManager)
@@ -109,7 +112,7 @@ class InteractionSerialEvaluator(ISerialEvaluator):
         if _policy is not None:
             self._policy = _policy
         self._policy_cfg = self._policy.get_attribute('cfg')
-        self._policy.reset()
+        self._policy.reset() # todo 本轮看代码中，这里疑似未实现，可能其他算法也有实现
 
     def reset(self, _policy: Optional[namedtuple] = None, _env: Optional[BaseEnvManager] = None) -> None:
         """
@@ -120,6 +123,9 @@ class InteractionSerialEvaluator(ISerialEvaluator):
                 environment and launch.
             If _policy is None, reset the old policy.
             If _policy is not None, replace the old policy in the evaluator with the new passed in policy.
+            同时重置环境和策略
+            如果是dreamer_command策略，还需要重置相关的状态记录
+            通用的重置一些属性
         Arguments:
             - policy (:obj:`Optional[namedtuple]`): the api namedtuple of eval_mode policy
             - env (:obj:`Optional[BaseEnvManager]`): instance of the subclass of vectorized \
@@ -132,10 +138,10 @@ class InteractionSerialEvaluator(ISerialEvaluator):
         if self._policy_cfg.type == 'dreamer_command':
             self._states = None
             self._resets = np.array([False for i in range(self._env_num)])
-        self._max_episode_return = float("-inf")
-        self._last_eval_iter = -1
-        self._end_flag = False
-        self._last_render_iter = -1
+        self._max_episode_return = float("-inf") # 记录历史最高奖励
+        self._last_eval_iter = -1 # 上一次评估的训练迭代数
+        self._end_flag = False # 标识评估器是否已经关闭
+        self._last_render_iter = -1 # 上一次渲染的迭代数或环境步数 todo
 
     def close(self) -> None:
         """

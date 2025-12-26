@@ -168,6 +168,7 @@ class TrajBuffer(list):
     """
     Overview:
        TrajBuffer is used to store traj_len pieces of transitions.
+       继承自list，可以看作是一个定长的list缓冲区
     Interfaces:
         __init__, append
     """

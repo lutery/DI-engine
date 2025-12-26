@@ -101,6 +101,7 @@ def serial_pipeline_r2d3(
     learner = BaseLearner(cfg.policy.learn.learner, policy.learn_mode, tb_logger, exp_name=cfg.exp_name)
     # 后续调试看看这里的collector具体是啥
     # 根据compile_config中的信息，如果没有配置，则注入默认的采集器，所以其值为：sample
+    # 创建待训练模型和专家模型对应的采集器实例
     collector = create_serial_collector(
         cfg.policy.collect.collector,
         env=collector_env,
@@ -118,6 +119,8 @@ def serial_pipeline_r2d3(
     evaluator = InteractionSerialEvaluator(
         cfg.policy.eval.evaluator, evaluator_env, policy.eval_mode, tb_logger, exp_name=cfg.exp_name
     )
+    # 这里才是缓冲区，那他和collector中的缓冲区有啥区别呢？如何配合使用的 todo
+    # 在compile_config中会将未None的Type设置为：advanced
     replay_buffer = create_buffer(cfg.policy.other.replay_buffer, tb_logger=tb_logger, exp_name=cfg.exp_name)
     commander = BaseSerialCommander(
         cfg.policy.other.commander, learner, collector, evaluator, replay_buffer, policy.command_mode

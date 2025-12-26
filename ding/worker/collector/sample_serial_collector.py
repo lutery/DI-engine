@@ -85,6 +85,7 @@ class SampleSerialCollector(ISerialCollector):
             If _env is None, reset the old environment.
             If _env is not None, replace the old environment in the collector with the new passed \
                 in environment and launch.
+            重置指定的环境或者指定的环境
         Arguments:
             - env (:obj:`Optional[BaseEnvManager]`): instance of the subclass of vectorized \
                 env_manager(BaseEnvManager)
@@ -104,18 +105,21 @@ class SampleSerialCollector(ISerialCollector):
             Reset the policy.
             If _policy is None, reset the old policy.
             If _policy is not None, replace the old policy in the collector with the new passed in policy.
+            重置模型策略，或者替换成新的策略
+            并根据策略配置缓冲区的长度
         Arguments:
             - policy (:obj:`Optional[namedtuple]`): the api namedtuple of collect_mode policy
         """
         assert hasattr(self, '_env'), "please set env first"
         if _policy is not None:
             self._policy = _policy
-            self._policy_cfg = self._policy.get_attribute('cfg')
-            self._default_n_sample = _policy.get_attribute('n_sample')
-            self._traj_len_inf = self._policy_cfg.traj_len_inf
-            self._unroll_len = _policy.get_attribute('unroll_len')
-            self._on_policy = _policy.get_attribute('on_policy')
-            if self._default_n_sample is not None and not self._traj_len_inf:
+            self._policy_cfg = self._policy.get_attribute('cfg') # 获取策略的配置参数
+            self._default_n_sample = _policy.get_attribute('n_sample') # 获取策略的采样数量
+            self._traj_len_inf = self._policy_cfg.traj_len_inf # 是否采用无限长度的轨迹
+            self._unroll_len = _policy.get_attribute('unroll_len') # 获取策略的unroll长度
+            self._on_policy = _policy.get_attribute('on_policy') # 是否是on policy
+            if self._default_n_sample is not None and not self._traj_len_inf: # 如果指定了缓存的长度并且缓存的长度不是无限长
+                # self._traj_len 记录的时缓存轨迹长度
                 self._traj_len = max(
                     self._unroll_len,
                     self._default_n_sample // self._env_num + int(self._default_n_sample % self._env_num != 0)
@@ -127,7 +131,7 @@ class SampleSerialCollector(ISerialCollector):
                 )
             else:
                 self._traj_len = INF
-        self._policy.reset()
+        self._policy.reset() # todo 疑似在本轮看代码中未实现具体的reset，后续通过debug确认
 
     def reset(self, _policy: Optional[namedtuple] = None, _env: Optional[BaseEnvManager] = None) -> None:
         """
@@ -138,6 +142,7 @@ class SampleSerialCollector(ISerialCollector):
                 in environment and launch.
             If _policy is None, reset the old policy.
             If _policy is not None, replace the old policy in the collector with the new passed in policy.
+            重置各种属性，并且创建缓冲区
         Arguments:
             - policy (:obj:`Optional[namedtuple]`): the api namedtuple of collect_mode policy
             - env (:obj:`Optional[BaseEnvManager]`): instance of the subclass of vectorized \
@@ -149,18 +154,21 @@ class SampleSerialCollector(ISerialCollector):
             self.reset_policy(_policy)
 
         if self._policy_cfg.type == 'dreamer_command':
-            self._states = None
-            self._resets = np.array([False for i in range(self._env_num)])
-        self._obs_pool = CachePool('obs', self._env_num, deepcopy=self._deepcopy_obs)
-        self._policy_output_pool = CachePool('policy_output', self._env_num)
+            self._states = None # todo 这里应该是dreamer_command专用的配置
+            self._resets = np.array([False for i in range(self._env_num)]) # 标识每个环境是否需要重置的标识数组
+        self._obs_pool = CachePool('obs', self._env_num, deepcopy=self._deepcopy_obs) # todo 感觉应该是用来缓存obs的
+        self._policy_output_pool = CachePool('policy_output', self._env_num) # todo 缓存每个模型策略的预测
         # _traj_buffer is {env_id: TrajBuffer}, is used to store traj_len pieces of transitions
         maxlen = self._traj_len if self._traj_len != INF else None
+        # 根据轨迹长度创建每个环境的缓冲区
         self._traj_buffer = {
             env_id: TrajBuffer(maxlen=maxlen, deepcopy=self._deepcopy_obs)
             for env_id in range(self._env_num)
         }
+        # 存储每个环境的信息，比如时间、步数、训练样本数等
         self._env_info = {env_id: {'time': 0., 'step': 0, 'train_sample': 0} for env_id in range(self._env_num)}
 
+        # todo 后续再看
         self._episode_info = []
         self._total_envstep_count = 0
         self._total_episode_count = 0

@@ -315,6 +315,7 @@ class BaseEnvManager(object):
         """
         Overview:
             Launch the env manager, instantiate the sub-environments and set up the environments and their parameters.
+            创建重置环境的必要条件（如状态记录、回合计数等），并调用reset方法重置所有子环境。
         Arguments:
             - reset_param (:obj:`Optional[Dict]`): A dict of reset parameters for each environment, key is the env_id, \
                 value is the corresponding reset parameter, defaults to None.
@@ -339,15 +340,16 @@ class BaseEnvManager(object):
 
     def _create_state(self) -> None:
         self._env_episode_count = {i: 0 for i in range(self.env_num)} # 记录每个子环境已经执行的回合数
-        self._ready_obs = {i: None for i in range(self.env_num)} # todo 是不是记录每个环境当前的obs
+        self._ready_obs = {i: None for i in range(self.env_num)} # 记录每个环境当前的obs
         self._envs = [e() for e in self._env_fn] # 实例化每个子环境
         assert len(self._envs) == self._env_num 
         self._reset_param = {i: {} for i in range(self.env_num)} # todo 记录每个子环境的reset参数
-        self._env_states = {i: EnvState.INIT for i in range(self.env_num)}
+        self._env_states = {i: EnvState.INIT for i in range(self.env_num)} # 初始化每个子环境的状态为INIT，估计后续会记录每个环境的状态信息
         if self._env_replay_path is not None:
+            # 如果每个环境配置的回放路径不为空，则启用保存回放功能，即将环境采集的obs信息存储起来
             for e, s in zip(self._envs, self._env_replay_path):
                 e.enable_save_replay(s)
-        self._closed = False
+        self._closed = False # 环境已经启动，关闭状态设置为false
 
     def reset(self, reset_param: Optional[Dict] = None) -> None:
         """
@@ -355,14 +357,16 @@ class BaseEnvManager(object):
             Forcely reset the sub-environments their corresponding parameters. Because in env manager all the \
             sub-environments usually are reset automatically as soon as they are done, this method is only called when \
             the caller must forcely reset all the sub-environments, such as in evaluation.
+            重置环境，设置其种子，根据传入的参数选择合适的环境进行重置
         Arguments:
             - reset_param (:obj:`List`): Dict of reset parameters for each environment, key is the env_id, \
                 value is the corresponding reset parameters.
         """
-        self._check_closed()
+        self._check_closed() # 防御性编程，确保环境管理器没有关闭
         # set seed if necessary
-        env_ids = list(range(self._env_num)) if reset_param is None else list(reset_param.keys())
-        for i, env_id in enumerate(env_ids):  # loop-type is necessary
+        env_ids = list(range(self._env_num)) if reset_param is None else list(reset_param.keys()) # 确定要reset的环境id，要么传入的参数定要么全部
+        for i, env_id in enumerate(env_ids):  # loop-type is necessary 遍历需要reset的环境id
+            # 总体来说就是设置环境的种子
             if self._env_seed[env_id] is not None:
                 if self._env_dynamic_seed is not None:
                     self._envs[env_id].seed(self._env_seed[env_id], self._env_dynamic_seed)
@@ -373,6 +377,7 @@ class BaseEnvManager(object):
         if reset_param is None:
             env_range = range(self.env_num)
         else:
+            # 看起来reset_param参数有需要重置的环境id
             for env_id in reset_param:
                 self._reset_param[env_id] = reset_param[env_id]
             env_range = reset_param.keys()
@@ -380,9 +385,23 @@ class BaseEnvManager(object):
             if self._env_replay_path is not None and self._env_states[env_id] == EnvState.RUN:
                 logging.warning("please don't reset a unfinished env when you enable save replay, we just skip it")
                 continue
+            # 分别调用每个环境id设置为重置
             self._reset(env_id)
 
     def _reset(self, env_id: int) -> None:
+        '''
+        Docstring for _reset
+        重置指定id的环境，重试次数max_retry次
+        重置前会设置环境的状态为RESET
+        重置后会设置环境的状态为RUN
+        将重置获取到的初始obs存储到_ready_obs
+
+        重置失败则先释放环境资源，然后创建新的环境后在尝试重置
+        
+        :param self: Description
+        :param env_id: Description
+        :type env_id: int
+        '''
 
         @timeout_wrapper(timeout=self._reset_timeout)
         def reset_fn():
