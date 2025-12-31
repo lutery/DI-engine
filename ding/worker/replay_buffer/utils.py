@@ -75,6 +75,7 @@ class UsedDataRemover:
 class SampledDataAttrMonitor(LoggedModel):
     """
     Overview:
+        todo 这玩意是干嘛的？
         SampledDataAttrMonitor is to monitor read-out indicators for ``expire`` times recent read-outs.
         Indicators include: read out time; average and max of read out data items' use; average, max and min of
         read out data items' priorityl; average and max of staleness.

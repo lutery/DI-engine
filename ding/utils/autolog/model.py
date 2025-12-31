@@ -14,20 +14,35 @@ class _LoggedModelMeta(ABCMeta):
     """
     Overview:
         Metaclass of LoggedModel, used to find all LoggedValue properties and register them.
+        在类定义阶段（import/解释器创建类对象时）自动收集 LoggedModel 子类里声明的所有 LoggedValue 属性，并把这些属性“注册”到类上，供 LoggedModel 运行时统一初始化和后续查询使用
     Interfaces:
         ``__init__``
     """
 
     def __init__(cls, name: str, bases: tuple, namespace: dict):
+        '''
+        Docstring for __init__
+        
+        :param cls: Description
+        :param name: Description
+        :type name: str
+        :param bases: Description
+        :type bases: tuple
+        :param namespace: namespace 是“类体”里写出来的名字到对象的映射
+        :type namespace: dict
+        '''
 
         super().__init__(name, bases, namespace)
 
-        _properties = []
+        _properties = [] # 保存所有 LoggedValue 属性的名字
+        # namespace包含所有在类体里定义的名字到对象的映射（包括子类）
         for k, v in namespace.items():
-            if isinstance(v, LoggedValue):
-                setattr(v, _LOGGED_VALUE__PROPERTY_NAME, k)
+            if isinstance(v, LoggedValue): # 找到所有 LoggedValue 成员属性
+                # _LOGGED_VALUE__PROPERTY_NAME是一个字符串常量，值为'__property_name__'，这样定义了在 LoggedValue 对象上设置一个叫 __property_name__ 的属性
+                setattr(v, _LOGGED_VALUE__PROPERTY_NAME, k) # 把属性名写入 LoggedValue 对象，这样这个属性就知道它被定义为啥名字了
                 _properties.append(k)
 
+        # 继续动态的给类对象设置一个叫 '__properties__' 的属性，值是上面收集到的所有 LoggedValue 属性名的列表
         setattr(cls, _LOGGED_MODEL__PROPERTIES, _properties)
 
 
@@ -115,6 +130,7 @@ class LoggedModel(metaclass=_LoggedModelMeta):
         """
         Overview:
             Get all property names.
+            获取再父类中注册的所有 LoggedValue 属性名
         """
 
         return getattr(self, _LOGGED_MODEL__PROPERTIES)
@@ -133,6 +149,9 @@ class LoggedModel(metaclass=_LoggedModelMeta):
         """
         Overview:
             Initialize all properties.
+            为每一个 LoggedValue 属性创建一个 TimeRangedData 对象，并把它绑定到当前 LoggedModel 实例上，属性名为
+            _LOGGED_MODEL__PROPERTY_ATTR_PREFIX + <LoggedValue属性名>
+            todo 这个TimeRangedData 是啥？
         """
 
         for name in self.__properties:
