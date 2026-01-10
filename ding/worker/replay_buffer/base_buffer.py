@@ -9,7 +9,8 @@ from ding.utils import import_module, BUFFER_REGISTRY
 class IBuffer(ABC):
     r"""
     Overview:
-        Buffer interface
+        Buffer interface 
+        采集的数据缓存的接口，定义了采集数据缓存类必须实现的方法。
     Interfaces:
         default_config, push, update, sample, clear, count, state_dict, load_state_dict
     """

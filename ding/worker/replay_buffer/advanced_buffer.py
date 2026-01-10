@@ -190,17 +190,21 @@ class AdvancedReplayBuffer(IBuffer):
         self._cur_learner_iter = -1 # 当前学习器的迭代次数
         self._cur_collector_envstep = -1 # 当前采集器的环境步数
         self._sampled_data_attr_print_count = 0 # 采样数据属性打印计数
+        # todo 算法无关，后续注释
         self._sampled_data_attr_monitor = SampledDataAttrMonitor(
             TickTime(), expire=monitor_cfg.sampled_data_attr.average_range
         )
+        # 采样数据属性打印频率
         self._sampled_data_attr_print_freq = monitor_cfg.sampled_data_attr.print_freq
         # Periodic thruput.
         if self._rank == 0:
+            # todo 周期性吞吐量监视器
             self._periodic_thruput_monitor = PeriodicThruputMonitor(
                 self._instance_name, monitor_cfg.periodic_thruput, self._logger, self._tb_logger
             )
 
-        # Used data remover
+        # Used data remover 
+        # 是否启用已使用数据移除器 todo
         self._enable_track_used_data = self._cfg.enable_track_used_data
         if self._enable_track_used_data:
             self._used_data_remover = UsedDataRemover()

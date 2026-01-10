@@ -149,7 +149,7 @@ class LoggedModel(metaclass=_LoggedModelMeta):
         """
         Overview:
             Initialize all properties.
-            为每一个 LoggedValue 属性创建一个 TimeRangedData 对象，并把它绑定到当前 LoggedModel 实例上，属性名为
+            为每一个 LoggedValue 属性创建一个对应的 TimeRangedData 对象（不是在LoggedValue内部创建），属于当前 LoggedModel 实例，属性名为
             _LOGGED_MODEL__PROPERTY_ATTR_PREFIX + <LoggedValue属性名>
             todo 这个TimeRangedData 是啥？
         """

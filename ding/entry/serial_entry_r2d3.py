@@ -122,6 +122,7 @@ def serial_pipeline_r2d3(
     # 这里才是缓冲区，那他和collector中的缓冲区有啥区别呢？如何配合使用的 todo
     # 在compile_config中会将未None的Type设置为：advanced
     replay_buffer = create_buffer(cfg.policy.other.replay_buffer, tb_logger=tb_logger, exp_name=cfg.exp_name)
+    # 
     commander = BaseSerialCommander(
         cfg.policy.other.commander, learner, collector, evaluator, replay_buffer, policy.command_mode
     )

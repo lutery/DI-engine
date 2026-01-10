@@ -144,7 +144,7 @@ class BaseLearner(object):
         # 不是想象中的模型hook或者java的aop
         self._hooks = {'before_run': [], 'before_iter': [], 'after_iter': [], 'after_run': []}
         # Last iteration. Used to record current iter.
-        # todo 这个是啥？
+        # todo 这个是啥？ 有可能是训练次数
         self._last_iter = CountVar(init_val=0)
         # Collector envstep. Used to record current envstep.
         # todo
@@ -421,8 +421,8 @@ class BaseLearner(object):
             - info (:obj:`dict`): Current learner info dict.
         """
         ret = {
-            'learner_step': self._last_iter.val,
-            'priority_info': self.priority_info,
+            'learner_step': self._last_iter.val, # todo 返回最近一次的训练轮数
+            'priority_info': self.priority_info, # todo 优先级队列的优先级信息
             'learner_done': self._learner_done,
         }
         return ret

@@ -24,10 +24,10 @@ class BaseSerialCommander(object):
     def __init__(
             self,
             cfg: dict,
-            learner: 'BaseLearner',  # noqa
-            collector: 'BaseSerialCollector',  # noqa
-            evaluator: 'InteractionSerialEvaluator',  # noqa
-            replay_buffer: 'IBuffer',  # noqa
+            learner: 'BaseLearner',  # todo
+            collector: 'BaseSerialCollector',  # 环境数据采集器
+            evaluator: 'InteractionSerialEvaluator',  # 和环境交互的验证器，在检测到效果好的时候保存模型
+            replay_buffer: 'IBuffer',  # 采集数据存储的缓冲区
             policy: namedtuple = None,
     ) -> None:
         r"""
@@ -45,7 +45,7 @@ class BaseSerialCommander(object):
         self._collector = collector
         self._evaluator = evaluator
         self._replay_buffer = replay_buffer
-        self._info = {}
+        self._info = {} # 存储
         if policy is not None:
             self.policy = policy
 

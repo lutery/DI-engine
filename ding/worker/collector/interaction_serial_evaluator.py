@@ -15,6 +15,8 @@ class InteractionSerialEvaluator(ISerialEvaluator):
     """
     Overview:
         Interaction serial evaluator class, policy interacts with env.
+        DI-engine 串行训练流水线中的“评估器（Evaluator）”实现，负责在训练过程中定期把当前 policy 切到 eval_mode，与环境交互跑若干回合，然后统计指标、写日志/TensorBoard、并在达到最好效果时触发保存模型
+        训练（learner）通常在采样数据上优化 loss，但我们真正关心的是：在环境里跑起来的回报（reward / return）到底有没有提升。InteractionSerialEvaluator 就是周期性地做这件事：policy interacts with env（名字里的 Interaction）。
     Interfaces:
         __init__, reset, reset_policy, reset_env, close, should_eval, eval
     Property:
@@ -38,7 +40,7 @@ class InteractionSerialEvaluator(ISerialEvaluator):
             cfg: dict, # 验证器的配置
             env: BaseEnvManager = None, # 环境
             policy: namedtuple = None,  # 策略模型，切换为了验证模式
-            tb_logger: 'SummaryWriter' = None,  # noqa
+            tb_logger: 'SummaryWriter' = None,  # 日志打印
             exp_name: Optional[str] = 'default_experiment',
             instance_name: Optional[str] = 'evaluator',
     ) -> None:
